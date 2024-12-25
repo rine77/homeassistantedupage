@@ -34,16 +34,16 @@ class Edupage:
 
         except CaptchaException as e:
             _LOGGER.error("EDUPAGE login failed: CAPTCHA needed. %s", e)
-            return False 
+            return False
 
         except SecondFactorFailedException as e:
             #TODO hier müsste man dann irgendwie abfangen, falls die session mal abgelaufen ist. und dies dann auch irgendwie via HA sauber zum Nutzer bringen!?
             _LOGGER.error("EDUPAGE login failed: 2FA error. %s", e)
-            return False  
+            return False
 
         except Exception as e:
             _LOGGER.error("EDUPAGE unexpected login error: %s", e)
-            return False  
+            return False
 
     async def get_classes(self):
 
@@ -101,7 +101,7 @@ class Edupage:
             return all_classrooms
         except Exception as e:
             raise UpdateFailed(F"EDUPAGE error updating get_classrooms data from API: {e}")
-    
+
     async def get_teachers(self):
 
         try:
@@ -121,6 +121,18 @@ class Edupage:
         except Exception as e:
             _LOGGER.error(f"EDUPAGE error updating get_timetable() data for {date}: {e}")
             raise UpdateFailed(f"EDUPAGE error updating get_timetable() data for {date}: {e}")
+
+    async def get_lunches(self, date):
+        try:
+            lunches_data = await self.hass.async_add_executor_job(self.api.get_lunches, date)
+            if lunches_data is None:
+                _LOGGER.debug("EDUPAGE lunches is None")
+            else:
+                _LOGGER.debug(f"EDUPAGE lunches_data for {date}: {lunches_data}")
+                return lunches_data
+        except Exception as e:
+            _LOGGER.error(f"EDUPAGE error updating get_lunches() data for {date}: {e}")
+            raise UpdateFailed(f"EDUPAGE error updating get_lunches() data for {date}: {e}")
 
     async def async_update(self):
 

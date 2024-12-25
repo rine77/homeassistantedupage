@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .homeassistant_edupage import Edupage
+from edupage_api.lunches import Lunch
 
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from .const import DOMAIN, CONF_PHPSESSID, CONF_SUBDOMAIN, CONF_STUDENT_ID
@@ -93,11 +94,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     if canceled_lessons:
                         timetable_data_canceled[current_date] = canceled_lessons
 
+                canteen_menu_data = {}
+                canteen_calendar_enabled = True
+                for offset in range(14):
+                    current_date = today + timedelta(days=offset)
+                    try:
+                        lunch = await edupage.get_lunches(current_date)
+                    except Exception as e:
+                        _LOGGER.error(f"Failed to fetch lunch data for {current_date}: {e}")
+                        lunch = None
+                        canteen_calendar_enabled = False
+                        break
+                    meals_to_add = []
+                    if lunch is not None and lunch.menus is not None and len(lunch.menus) > 0:
+                        _LOGGER.debug(f"Lunch for {current_date}: {lunch}")
+                        meals_to_add.append(lunch)
+
+                    if meals_to_add:
+                        _LOGGER.debug(f"Daily menu for {current_date}: {lessons_to_add}")
+                        canteen_menu_data[current_date] = meals_to_add
+                    else:
+                        _LOGGER.warning(f"INIT No daily menu found for {current_date}")
+
                 return_data = {
                     "student": {"id": student.person_id, "name": student.name},
                     "grades": grades,
                     "subjects": subjects,
                     "timetable": timetable_data,
+                    "canteen_menu": canteen_menu_data,
+                    "canteen_calendar_enabled": canteen_calendar_enabled,
                     "cancelled_lessons": timetable_data_canceled,
                     "notifications": notifications,
                 }

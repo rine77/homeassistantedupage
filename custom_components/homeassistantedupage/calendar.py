@@ -5,22 +5,35 @@ from typing import Optional
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from zoneinfo import ZoneInfo
 from edupage_api.timetables import Lesson
+from edupage_api.lunches import Lunch
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
 _LOGGER.debug("CALENDAR Edupage calendar.py is being loaded")
 
-async def async_setup_entry(hass, entry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     """Set up Edupage calendar entities."""
     _LOGGER.debug("CALENDAR called async_setup_entry")
 
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    edupage_calendar = EdupageCalendar(coordinator, entry.data)
+    calendars = []
 
-    async_add_entities([edupage_calendar])
+    edupage_calendar = EdupageCalendar(coordinator, entry.data)
+    calendars.append(edupage_calendar)
+
+    if coordinator.data.get("canteen_calendar_enabled", {}):
+        edupage_canteen_calendar = EdupageCanteenCalendar(coordinator, entry.data)
+        calendars.append(edupage_canteen_calendar)
+        _LOGGER.debug("Canteen calendar added")
+    else:
+        _LOGGER.debug("Canteen calendar skipped, calendar disabled due to exceptions")
+
+    async_add_entities(calendars)
 
     _LOGGER.debug("CALENDAR async_setup_entry finished.")
 
@@ -169,4 +182,95 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
                 if next_lesson:
                     return self.map_lesson_to_calender_event(next_lesson, day)
 
+        return None
+
+class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
+    """Representation of an Edupage canteen calendar entity."""
+
+    def __init__(self, coordinator, data):
+        super().__init__(coordinator)
+        self._data = data
+        self._events = []
+        self._attr_name = "Edupage Canteen Calendar"
+        _LOGGER.debug(f"CALENDAR Initialized EdupageCanteenCalendar with data: {data}")
+
+    @property
+    def unique_id(self):
+        """Return a unique ID for this calendar."""
+        return f"edupage_canteen_calendar"
+
+    @property
+    def name(self):
+        """Return the name of the calendar."""
+        return f"Edupage - Canteen"
+
+    @property
+    def extra_state_attributes(self):
+        """Return the extra state attributes."""
+        return {
+            "unique_id": self.unique_id,
+            "other_info": "debug info"
+        }
+
+    @property
+    def available(self) -> bool:
+        """Return True if the calendar is available."""
+        _LOGGER.debug("CALENDAR Checking availability of Edupage Canteen Calendar")
+        return True
+
+    @property
+    def event(self):
+        """Return the next upcoming event or None if no event exists."""
+        return self.find_meal_now_or_next_across_days()
+
+    async def async_get_events(self, hass, start_date: datetime, end_date: datetime):
+        """Return events in a specific date range."""
+        events = []
+
+        _LOGGER.debug(f"CALENDAR Fetching canteen calendar between {start_date} and {end_date}")
+        canteen_menu = self.coordinator.data.get("canteen_menu", {})
+        _LOGGER.debug(f"CALENDAR Coordinator data: {self.coordinator.data}")
+        _LOGGER.debug(f"CALENDAR Fetched canteen_menu data: {canteen_menu}")
+
+        if not canteen_menu:
+            _LOGGER.warning("CALENDAR Canteen menu data is missing.")
+            return events
+
+        current_date = start_date.date()
+        while current_date <= end_date.date():
+            events.extend(self.get_events(canteen_menu, current_date))
+            current_date += timedelta(days=1)
+
+        _LOGGER.debug(f"CALENDAR Fetched {len(events)} events from {start_date} to {end_date}")
+        return events
+
+    def get_events(self, canteen_menu, current_date):
+        events = []
+        daily_menu = canteen_menu.get(current_date)
+        if daily_menu:
+            for meal in daily_menu:
+                _LOGGER.debug(f"CALENDAR Meal attributes: {vars(meal)}")
+                events.append(
+                    self.map_meal_to_calender_event(meal, current_date)
+                )
+        return events
+
+
+    def map_meal_to_calender_event(self, meal: Lunch, day: date) -> CalendarEvent:
+        local_tz = ZoneInfo(self.hass.config.time_zone)
+        start_time = datetime.combine(day, meal.served_from.time()).astimezone(local_tz)
+        end_time = datetime.combine(day, meal.served_to.time()).astimezone(local_tz)
+        summary = "Lunch"
+        description = meal.title
+
+        cal_event = CalendarEvent(
+            start=start_time,
+            end=end_time,
+            summary=summary,
+            description=description
+        )
+        return cal_event
+
+    def find_meal_now_or_next_across_days(self) -> Optional[CalendarEvent]:
+        # TODO implement
         return None

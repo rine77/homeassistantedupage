@@ -122,17 +122,17 @@ class Edupage:
             _LOGGER.error(f"EDUPAGE error updating get_timetable() data for {date}: {e}")
             raise UpdateFailed(f"EDUPAGE error updating get_timetable() data for {date}: {e}")
 
-    async def get_lunches(self, date):
+    async def get_meals(self, date):
         try:
-            lunches_data = await self.hass.async_add_executor_job(self.api.get_lunches, date)
-            if lunches_data is None:
-                _LOGGER.debug("EDUPAGE lunches is None")
+            meals_data = await self.hass.async_add_executor_job(self.api.get_meals, date)
+            if meals_data is None:
+                _LOGGER.debug("EDUPAGE meals is None")
             else:
-                _LOGGER.debug(f"EDUPAGE lunches_data for {date}: {lunches_data}")
-                return lunches_data
+                _LOGGER.debug(f"EDUPAGE meals_data for {date}: {meals_data}")
+                return meals_data
         except Exception as e:
-            _LOGGER.error(f"EDUPAGE error updating get_lunches() data for {date}: {e}")
-            raise UpdateFailed(f"EDUPAGE error updating get_lunches() data for {date}: {e}")
+            _LOGGER.error(f"EDUPAGE error updating get_meals() data for {date}: {e}")
+            raise UpdateFailed(f"EDUPAGE error updating get_meals() data for {date}: {e}")
 
     async def async_update(self):
 

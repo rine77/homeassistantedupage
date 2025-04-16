@@ -6,7 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .homeassistant_edupage import Edupage
-from edupage_api.lunches import Lunch
+from edupage_api.lunches import Meal
 
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from .const import DOMAIN, CONF_PHPSESSID, CONF_SUBDOMAIN, CONF_STUDENT_ID
@@ -99,19 +99,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 for offset in range(14):
                     current_date = today + timedelta(days=offset)
                     try:
-                        lunch = await edupage.get_lunches(current_date)
+                        meals = await edupage.get_meals(current_date)
                     except Exception as e:
-                        _LOGGER.error(f"Failed to fetch lunch data for {current_date}: {e}")
-                        lunch = None
+                        _LOGGER.error(f"Failed to fetch meals data for {current_date}: {e}")
+                        meals = None
                         canteen_calendar_enabled = False
                         break
                     meals_to_add = []
-                    if lunch is not None and lunch.menus is not None and len(lunch.menus) > 0:
-                        _LOGGER.debug(f"Lunch for {current_date}: {lunch}")
-                        meals_to_add.append(lunch)
+                    if meals is not None:
+                        if meals.snack is not None and meals.snack.menus is not None and len(meals.snack.menus) > 0:
+                          _LOGGER.debug(f"Meals for snack {current_date}: {meals.snack}")
+                          meals_to_add.append(meals.snack)
+                        if meals.lunch is not None and meals.lunch.menus is not None and len(meals.lunch.menus) > 0:
+                          _LOGGER.debug(f"Meals for lunch {current_date}: {meals.lunch}")
+                          meals_to_add.append(meals.lunch)
+                        if meals.afternoon_snack is not None and meals.afternoon_snack.menus is not None and len(meals.afternoon_snack.menus) > 0:
+                          _LOGGER.debug(f"Meals for afternoon_snack {current_date}: {meals.afternoon_snack}")
+                          meals_to_add.append(meals.afternoon_snack)
 
                     if meals_to_add:
-                        _LOGGER.debug(f"Daily menu for {current_date}: {lessons_to_add}")
+                        _LOGGER.debug(f"Daily menu for {current_date}: {meals_to_add}")
                         canteen_menu_data[current_date] = meals_to_add
                     else:
                         _LOGGER.warning(f"INIT No daily menu found for {current_date}")

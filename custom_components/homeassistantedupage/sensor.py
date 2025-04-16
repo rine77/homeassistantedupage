@@ -102,6 +102,8 @@ class EduPageSubjectSensor(CoordinatorEntity, SensorEntity):
                 attributes[f"grade_{i+1}_max_points"] = grade.max_points
             if grade.percent:
                 attributes[f"grade_{i+1}_percent"] = grade.percent
+            if grade.comment:
+                attributes[f"grade_{i+1}_comment"] = grade.comment
             attributes[f"grade_{i+1}_date"] = grade.date.strftime("%Y-%m-%d %H:%M:%S")
 
             teacher_name = grade.teacher.name if grade.teacher else "unknown"

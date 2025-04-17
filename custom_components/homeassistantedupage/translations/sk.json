@@ -1,0 +1,21 @@
+{
+  "config": {
+    "flow_title": "Nastavenie EduPage",
+    "error": {
+      "cannot_connect": "Chyba spojenia"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "password": "Heslo",
+          "username": "Meno používateľa"
+        },
+        "description": "Prihláste sa zadaním mena používateľa a hesla.\nAko URL adresu zadajte iba meno subdomény EduPage.\n\nAk máte povolené dvojfaktorové prihlasovanie, potvrďte ho na vašom zariadení.",
+        "title": "Prihláste sa k vášmu účtu Edupage"
+      }
+    },
+    "abort": {
+      "already_configured": "Zariadenie už je nakonfigurované"
+    }
+  }
+}

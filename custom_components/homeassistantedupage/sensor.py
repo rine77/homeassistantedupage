@@ -46,7 +46,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         coordinator,
         student.get("id"),
         student.get("name"),
-        notifications
+        notifications,
+        subjects
     )
 
     sensors.append(notify)
@@ -114,7 +115,7 @@ class EduPageSubjectSensor(CoordinatorEntity, SensorEntity):
 class EduPageNotificationSensor(CoordinatorEntity, SensorEntity):
     """Subject sensor entity for a specific student."""
 
-    def __init__(self, coordinator, student_id, student_name, notifications):
+    def __init__(self, coordinator, student_id, student_name, notifications, subjects):
         """Initialize the sensor."""
         super().__init__(coordinator)
 
@@ -126,6 +127,7 @@ class EduPageNotificationSensor(CoordinatorEntity, SensorEntity):
         self._name = self._attr_name
 
         self._unique_id = f"edupage_notification_{self._student_id}_{self._student_name}"
+        self._subjects = {subject.subject_id: subject.name for subject in subjects}
 
         _LOGGER.info("SENSOR unique_id %s", self._unique_id)
 
@@ -158,6 +160,7 @@ class EduPageNotificationSensor(CoordinatorEntity, SensorEntity):
                 attributes[f"event_{i+1}_deadline"] = event.additional_data.get("date") if event.additional_data else None
                 author_name = event.author if event.author else "no author"
                 attributes[f"event_{i+1}_author"] = author_name
+                attributes[f"event_{i+1}_subject"] = self._subjects.get(int(event.additional_data.get("predmetid"))) if event.additional_data else None
 
         return attributes
 

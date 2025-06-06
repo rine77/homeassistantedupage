@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from zoneinfo import ZoneInfo
 from edupage_api.timetables import Lesson
-from edupage_api.lunches import Lunch
+from edupage_api.lunches import Meal
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
 _LOGGER.debug("CALENDAR Edupage calendar.py is being loaded")
@@ -256,11 +256,11 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
         return events
 
 
-    def map_meal_to_calender_event(self, meal: Lunch, day: date) -> CalendarEvent:
+    def map_meal_to_calender_event(self, meal: Meal, day: date) -> CalendarEvent:
         local_tz = ZoneInfo(self.hass.config.time_zone)
         start_time = datetime.combine(day, meal.served_from.time()).astimezone(local_tz)
         end_time = datetime.combine(day, meal.served_to.time()).astimezone(local_tz)
-        summary = "Lunch"
+        summary = meal.meal_type.name
         description = meal.title
 
         cal_event = CalendarEvent(

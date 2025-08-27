@@ -7,6 +7,6 @@
     "documentation": "https://github.com/rine77/homeassistantedupage",
     "iot_class": "cloud_polling",
     "issue_tracker": "https://github.com/rine77/homeassistantedupage/issues",
-    "requirements": ["edupage-api==0.12.0", "unidecode"],
-    "version": "0.2.0"
+    "requirements": ["edupage-api==0.12.1", "unidecode"],
+    "version": "0.3.4"
 }

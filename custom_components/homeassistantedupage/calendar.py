@@ -197,12 +197,14 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
     @property
     def unique_id(self):
         """Return a unique ID for this calendar."""
-        return f"edupage_canteen_calendar"
+        student_id = self.coordinator.data.get("student", {}).get("id", "unknown")
+        return f"edupage_canteen_calendar_{student_id}"
 
     @property
     def name(self):
         """Return the name of the calendar."""
-        return f"Edupage - Canteen"
+        student_name = self.coordinator.data.get("student", {}).get("name", "Unknown Student")
+        return f"Edupage Canteen - {student_name}"
 
     @property
     def extra_state_attributes(self):

@@ -77,7 +77,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 today = datetime.now().date()
                 for offset in range(14):
                     current_date = today + timedelta(days=offset)
-                    timetable = await edupage.get_timetable(student, current_date)
+                    try:
+                        timetable = await edupage.get_timetable(student, current_date)
+                    except Exception as e:
+                        _LOGGER.error(f"Failed to fetch timetable data for {current_date}: {e}")
+                        break
                     lessons_to_add = []
                     canceled_lessons = []
                     if timetable is not None:
@@ -137,8 +141,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 return return_data
 
             except Exception as e:
-                _LOGGER.error("INIT Failed to fetch timetable: %s", e)
-                return {"timetable": {}}
+                _LOGGER.error("INIT Failed: %s", e)
+                return {}
 
     try:
         coordinator = DataUpdateCoordinator(

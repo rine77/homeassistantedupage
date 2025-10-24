@@ -160,7 +160,8 @@ class EduPageNotificationSensor(CoordinatorEntity, SensorEntity):
                 attributes[f"event_{i+1}_deadline"] = event.additional_data.get("date") if event.additional_data else None
                 author_name = event.author if event.author else "no author"
                 attributes[f"event_{i+1}_author"] = author_name
-                attributes[f"event_{i+1}_subject"] = self._subjects.get(int(event.additional_data.get("predmetid"))) if event.additional_data else None
+                subject = event.additional_data.get("predmetid") if event.additional_data else None
+                attributes[f"event_{i+1}_subject"] = self._subjects.get(int(subject)) if subject else None
 
         return attributes
 

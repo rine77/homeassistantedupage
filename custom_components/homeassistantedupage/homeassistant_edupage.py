@@ -18,9 +18,17 @@ class Edupage:
         try:
             result = True
             login = Login(self.api)
-            await self.hass.async_add_executor_job(
-                login.reload_data, subdomain, self.sessionid, username
-            )
+            try:
+                await self.hass.async_add_executor_job(
+                    login.reload_data, subdomain, self.sessionid, username
+                )
+            except Exception as reload_err:
+                _LOGGER.warning(
+                    "EDUPAGE session reload failed (%s), falling back to fresh login",
+                    reload_err,
+                )
+                # Recreate API instance — reload_data may have polluted internal state
+                self.api = APIEdupage()
             if not self.api.is_logged_in:
                 #TODO: how to handle 2FA at this point?!
                 result = await self.hass.async_add_executor_job(

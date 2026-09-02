@@ -2,20 +2,55 @@
   "config": {
     "flow_title": "EduPage Setup Flow",
     "error": {
-      "cannot_connect": "Keine Verbindung möglich"
+      "cannot_connect": "Keine Verbindung möglich",
+      "invalid_auth": "Ungültige Zugangsdaten",
+      "invalid_code": "Der Bestätigungscode ist ungültig oder abgelaufen.",
+      "captcha_required": "EduPage verlangt ein CAPTCHA. Versuchen Sie es später erneut oder prüfen Sie Ihre Zugangsdaten."
     },
     "step": {
       "user": {
         "data": {
           "password": "Passwort",
-          "username": "Username"
+          "username": "Username",
+          "subdomain": "Subdomain"
         },
-        "description": "Login mit Username und Passwort.\nAchten Sie daruf nur die subdomain der edupage URL zu benutzen.\n\nSollten Sie 2FA aktiviert haben, bestätigten sie dies auf Ihrem Endgerät.",
+        "description": "Geben Sie EduPage-Benutzername, Passwort und Schul-Subdomain ein.\n\nWenn Sie 2FA aktiviert haben, werden Sie nach einem Bestätigungscode aus der EduPage-App gefragt.",
         "title": "edupage account login"
+      },
+      "two_factor": {
+        "title": "Zwei-Faktor-Authentifizierung",
+        "description": "Eine Bestätigung in der EduPage-App ist erforderlich. Geben Sie den dort angezeigten Bestätigungscode ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
+        }
+      },
+      "select_student": {
+        "title": "Schüler auswählen",
+        "description": "Wählen Sie aus, welchen Schüler diese Integration verfolgen soll.",
+        "data": {
+          "student": "Schüler"
+        }
+      },
+      "reconfigure": {
+        "title": "EduPage erneut authentifizieren",
+        "description": "Melden Sie sich erneut an, um die abgelaufene Sitzung zu erneuern. Wenn 2FA aktiviert ist, geben Sie den Bestätigungscode aus der EduPage-App ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
+        }
+      },
+      "reconfigure_code": {
+        "title": "Zwei-Faktor-Authentifizierung",
+        "description": "Geben Sie den in der EduPage-App angezeigten Bestätigungscode ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
+        }
       }
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Das Gerät ist bereits konfiguriert",
+      "no_students_found": "Auf diesem Konto wurden keine Schüler gefunden.",
+      "reconfigured": "Die gespeicherte Sitzung wurde erfolgreich aktualisiert.",
+      "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}"
     }
   }
 }

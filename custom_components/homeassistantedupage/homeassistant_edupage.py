@@ -56,9 +56,27 @@ class Edupage:
                 )
             _LOGGER.debug("EDUPAGE session loaded for %s@%s", username, subdomain)
             return True
+        except EdupageSessionExpired:
+            # Our own expiration signal must pass through untouched so the
+            # integration can start the reauthentication flow. Do not let the
+            # broad handler below convert it into a generic UpdateFailed.
+            raise
         except BadCredentialsException as e:
             _LOGGER.error(
                 "EDUPAGE stored session is invalid or expired: %s. "
+                "Re-authenticate to refresh the session.",
+                e,
+            )
+            raise EdupageSessionExpired(
+                "EduPage session invalid/expired; please re-authenticate the "
+                "integration to refresh it."
+            ) from e
+        except IndexError as e:
+            # Login.reload_data() raises IndexError on a real installation when
+            # the stored session is expired (homeassistantedupage#70). Treat it
+            # as an expired session so the reauthentication flow starts again.
+            _LOGGER.error(
+                "EDUPAGE stored session could not be reloaded (expired): %s. "
                 "Re-authenticate to refresh the session.",
                 e,
             )

@@ -10,18 +10,22 @@ import voluptuous as vol
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .homeassistant_edupage import Edupage, EdupageSessionExpired
-from .const import DOMAIN, CONF_PHPSESSID, CONF_SUBDOMAIN, CONF_STUDENT_ID
 from edupage_api.lunches import MealType
 from edupage_api.grades import Term
+from .const import (
+    DOMAIN,
+    CONF_PHPSESSID,
+    CONF_SUBDOMAIN,
+    CONF_STUDENT_ID,
+    CONF_STUDENT_NAME,
+)
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
-
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the integration (config-entry only)."""
     _LOGGER.debug("INIT called async_setup")
     return True
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up EduPage integration and validate the stored session."""
@@ -32,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     subdomain = entry.data[CONF_SUBDOMAIN]
     phpsessid = entry.data[CONF_PHPSESSID]
     student_id = entry.data[CONF_STUDENT_ID]
+    stored_student_name = entry.data.get(CONF_STUDENT_NAME)
     edupage = Edupage(hass=hass, sessionid=phpsessid)
     coordinator = None
 
@@ -69,6 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     )
                     return {"timetable": {}}
 
+                student_name = student.name or stored_student_name or str(student.person_id)
                 grades = await edupage.get_grades()
                 subjects = await edupage.get_subjects()
                 notifications = await edupage.get_notifications()
@@ -171,7 +177,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     school_year = None
 
                 return_data = {
-                    "student": {"id": student.person_id, "name": student.name},
+                    "student": {"id": student.person_id, "name": student_name},
                     "grades": grades,
                     "subjects": subjects,
                     "timetable": timetable_data,

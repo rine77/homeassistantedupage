@@ -39,18 +39,25 @@ async def async_setup_entry(
     grades_by_subject = group_grades_by_subject(grades)
 
     sensors = []
+    sensors = []
+    subject_unique_ids = set()
 
     for subject in subjects:
         subject_grades = grades_by_subject.get(subject.subject_id, [])
-        sensors.append(
-            EduPageSubjectSensor(
-                coordinator,
-                student.get("id"),
-                student.get("name"),
-                subject.name,
-                subject_grades,
-            )
+
+        sensor = EduPageSubjectSensor(
+            coordinator,
+            student.get("id"),
+            student.get("name"),
+            subject.name,
+            subject_grades,
         )
+
+        if sensor.unique_id in subject_unique_ids:
+            sensor._unique_id = f"{sensor.unique_id}_{subject.subject_id}"
+
+        subject_unique_ids.add(sensor.unique_id)
+        sensors.append(sensor)
 
     sensors.append(
         EduPageNotificationSensor(

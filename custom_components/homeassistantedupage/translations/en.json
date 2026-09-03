@@ -2,20 +2,56 @@
   "config": {
     "flow_title": "EduPage Setup Flow",
     "error": {
-      "cannot_connect": "Failed to connect"
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid credentials",
+      "invalid_code": "The confirmation code is invalid or has expired.",
+      "captcha_required": "EduPage is asking for a CAPTCHA. Try again later or check your credentials."
     },
     "step": {
       "user": {
         "data": {
           "password": "Password",
-          "username": "Username"
+          "username": "Username",
+          "subdomain": "Subdomain"
         },
-        "description": "Login using your username and password.\nMake sure to only use the subdomain of the edupage URL.\n\nIf you have 2FA enabled, confirm it on your device.",
+        "description": "Enter your EduPage username, password and school subdomain.\n\nIf you have 2FA enabled, you will be asked for a confirmation code from the EduPage app.",
         "title": "Login to your edupage account"
+      },
+      "two_factor": {
+        "title": "Two-Factor Authentication",
+        "description": "A confirmation in the EduPage mobile app is required. Enter the confirmation code shown there.",
+        "data": {
+          "two_factor_code": "Confirmation code"
+        }
+      },
+      "select_student": {
+        "title": "Select Student",
+        "description": "Choose which student this integration should track.",
+        "data": {
+          "student": "Student"
+        }
+      },
+      "reconfigure": {
+        "title": "Re-authenticate EduPage",
+        "description": "Login again to refresh the expired session. If 2FA is enabled, enter the confirmation code from the EduPage app.",
+        "data": {
+          "two_factor_code": "Confirmation code"
+        }
+      },
+      "reconfigure_code": {
+        "title": "Two-Factor Authentication",
+        "description": "Enter the confirmation code shown in the EduPage mobile app.",
+        "data": {
+          "two_factor_code": "Confirmation code"
+        }
       }
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "no_students_found": "No students were found on this account.",
+      "reconfigured": "Successfully updated the stored session.",
+      "reconfigure_failed": "Re-authentication failed: {error}",
+      "reauth_unsuccessful": "Re-authentication unsuccessful: {error}"
     }
   }
 }

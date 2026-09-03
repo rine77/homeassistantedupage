@@ -2,20 +2,56 @@
   "config": {
     "flow_title": "Nastavenie EduPage",
     "error": {
-      "cannot_connect": "Chyba spojenia"
+      "cannot_connect": "Chyba spojenia",
+      "invalid_auth": "Neplatné prihlasovacie údaje",
+      "invalid_code": "Potvrdzovací kód je neplatný alebo vypršal.",
+      "captcha_required": "EduPage vyžaduje CAPTCHA. Skúste to neskôr alebo skontrolujte svoje prihlasovacie údaje."
     },
     "step": {
       "user": {
         "data": {
           "password": "Heslo",
-          "username": "Meno používateľa"
+          "username": "Meno používateľa",
+          "subdomain": "Subdoména"
         },
-        "description": "Prihláste sa zadaním mena používateľa a hesla.\nAko URL adresu zadajte iba meno subdomény EduPage.\n\nAk máte povolené dvojfaktorové prihlasovanie, potvrďte ho na vašom zariadení.",
+        "description": "Zadajte meno používateľa EduPage, heslo a subdoménu školy.\n\nAk máte povolené dvojfaktorové prihlasovanie, budete požiadaní o potvrdzovací kód z aplikácie EduPage.",
         "title": "Prihláste sa k vášmu účtu Edupage"
+      },
+      "two_factor": {
+        "title": "Dvojfaktorová autentifikácia",
+        "description": "Vyžaduje sa potvrdenie v mobilnej aplikácii EduPage. Zadajte potvrdzovací kód zobrazený tam.",
+        "data": {
+          "two_factor_code": "Potvrdzovací kód"
+        }
+      },
+      "select_student": {
+        "title": "Vyberte študenta",
+        "description": "Vyberte, ktorého študenta má táto integrácia sledovať.",
+        "data": {
+          "student": "Študent"
+        }
+      },
+      "reconfigure": {
+        "title": "Znova overiť EduPage",
+        "description": "Prihláste sa znova, aby ste obnovili vypršanú reláciu. Ak je povolené 2FA, zadajte potvrdzovací kód z aplikácie EduPage.",
+        "data": {
+          "two_factor_code": "Potvrdzovací kód"
+        }
+      },
+      "reconfigure_code": {
+        "title": "Dvojfaktorová autentifikácia",
+        "description": "Zadajte potvrdzovací kód zobrazený v mobilnej aplikácii EduPage.",
+        "data": {
+          "two_factor_code": "Potvrdzovací kód"
+        }
       }
     },
     "abort": {
-      "already_configured": "Zariadenie už je nakonfigurované"
+      "already_configured": "Zariadenie už je nakonfigurované",
+      "no_students_found": "Na tomto účte sa nenašli žiadni študenti.",
+      "reconfigured": "Uložená relácia bola úspešne aktualizovaná.",
+      "reconfigure_failed": "Opätovné overenie zlyhalo: {error}",
+      "reauth_unsuccessful": "Opätovné overenie sa nepodarilo: {error}"
     }
   }
 }

@@ -181,3 +181,139 @@ class Edupage:
             raise UpdateFailed(
                 f"EDUPAGE error updating get_meals() data for {day}: {e}"
             )
+
+    async def get_timetable_changes(self, day):
+        try:
+            return await self.hass.async_add_executor_job(
+                self.api.get_timetable_changes, day
+            )
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(
+                f"EDUPAGE error updating get_timetable_changes() data for {day}: {e}"
+            )
+
+    async def get_missing_teachers(self, day):
+        try:
+            return await self.hass.async_add_executor_job(
+                self.api.get_missing_teachers, day
+            )
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(
+                f"EDUPAGE error updating get_missing_teachers() data for {day}: {e}"
+            )
+
+    async def get_next_ringing_time(self, day_time):
+        try:
+            return await self.hass.async_add_executor_job(
+                self.api.get_next_ringing_time, day_time
+            )
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(
+                f"EDUPAGE error updating get_next_ringing_time() data from API: {e}"
+            )
+
+    async def get_school_year(self) -> int:
+        """Returns the current school year."""
+        try:
+            return await self.hass.async_add_executor_job(self.api.get_school_year)
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(
+                f"EDUPAGE error updating get_school_year() data from API: {e}"
+            )
+
+    async def get_grades_for_term(self, year: int, term):
+        """Returns grades for a specific school term."""
+        try:
+            return await self.hass.async_add_executor_job(
+                self.api.get_grades_for_term, year, term
+            )
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(
+                f"EDUPAGE error updating get_grades_for_term() data from API: {e}"
+            )
+
+    # ------------------------------------------------------------------
+    # Action methods used by services
+    # ------------------------------------------------------------------
+
+    async def choose_meal(self, meal, number: int):
+        try:
+            await self.hass.async_add_executor_job(meal.choose, self.api, number)
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(f"EDUPAGE error choosing meal: {e}")
+
+    async def sign_off_meal(self, meal):
+        try:
+            await self.hass.async_add_executor_job(meal.sign_off, self.api)
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(f"EDUPAGE error signing off meal: {e}")
+
+    async def rate_meal(self, rating, quantity: int, quality: int):
+        try:
+            await self.hass.async_add_executor_job(
+                rating.rate, self.api, quantity, quality
+            )
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(f"EDUPAGE error rating meal: {e}")
+
+    async def resolve_recipients(self, recipients):
+        """Resolve recipient strings to EduPage account objects.
+
+        ``edupage-api``'s ``send_message`` expects account objects (or their
+        ``get_id()`` strings like ``s123``/``u456``). A free-text name would be
+        sent verbatim as ``selectedUser`` and fail against EduPage. We therefore
+        match each recipient against the known students and teachers (by numeric
+        ``person_id`` or by case-insensitive name) and raise if one cannot be
+        resolved.
+        """
+        names = []
+        ids = []
+        for raw in recipients:
+            raw = str(raw).strip()
+            if not raw:
+                continue
+            if raw.isdigit():
+                ids.append(raw)
+            else:
+                names.append(raw)
+        if not names and not ids:
+            raise UpdateFailed("EduPage send_message: no recipients given")
+
+        resolved = []
+        unmatched = list(names)
+        for account_list in (await self.get_students(), await self.get_teachers()):
+            for account in account_list or []:
+                needle = str(account.person_id)
+                if needle in ids:
+                    resolved.append(account)
+                    ids.remove(needle)
+                elif account.name and account.name.lower() in [n.lower() for n in unmatched]:
+                    resolved.append(account)
+                    matched_name = next(n for n in unmatched if n.lower() == account.name.lower())
+                    unmatched.remove(matched_name)
+
+        if ids:
+            raise UpdateFailed(
+                f"EduPage send_message: could not resolve recipient id(s): {', '.join(ids)}"
+            )
+        if unmatched:
+            raise UpdateFailed(
+                f"EduPage send_message: could not resolve recipient(s): {', '.join(unmatched)}"
+            )
+        return resolved
+
+    async def send_message(self, recipients, body: str):
+        try:
+            accounts = await self.resolve_recipients(recipients)
+            # edupage-api 0.12.5 sends the first ``selectedUser`` using the exact
+            # ``EduAccount`` type check; student/teacher subclasses are not
+            # accepted and would be string-joined, so we pass the resolved
+            # recipient IDs (e.g. ``s123``/``u456``) instead of the objects.
+            recipient_ids = [account.get_id() for account in accounts]
+            return await self.hass.async_add_executor_job(
+                self.api.send_message, recipient_ids, body
+            )
+        except UpdateFailed:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed(f"EDUPAGE error sending message: {e}")

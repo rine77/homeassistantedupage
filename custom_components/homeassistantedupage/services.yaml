@@ -1,0 +1,112 @@
+choose_meal:
+  description: Select (choose) a canteen meal for the given day and meal type.
+  fields:
+    date:
+      description: Date of the meal in YYYY-MM-DD format.
+      example: "2026-09-03"
+      required: true
+    meal_type:
+      description: Type of meal to choose.
+      example: lunch
+      required: true
+      selector:
+        select:
+          options:
+            - snack
+            - lunch
+            - afternoon_snack
+    number:
+      description: Menu number to select (1-8).
+      example: 2
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+    entry_id:
+      description: Config entry ID to target when multiple EduPage entries are loaded.
+      example: 01J4XYZABC
+      required: false
+
+sign_off_meal:
+  description: Sign off (cancel) the selected canteen meal for the given day and meal type.
+  fields:
+    date:
+      description: Date of the meal in YYYY-MM-DD format.
+      example: "2026-09-03"
+      required: true
+    meal_type:
+      description: Type of meal to sign off.
+      example: lunch
+      required: true
+      selector:
+        select:
+          options:
+            - snack
+            - lunch
+            - afternoon_snack
+    entry_id:
+      description: Config entry ID to target when multiple EduPage entries are loaded.
+      example: 01J4XYZABC
+      required: false
+
+rate_meal:
+  description: Rate a canteen meal menu by quantity and quality.
+  fields:
+    date:
+      description: Date of the meal in YYYY-MM-DD format.
+      example: "2026-09-03"
+      required: true
+    meal_type:
+      description: Type of meal to rate.
+      example: lunch
+      required: true
+      selector:
+        select:
+          options:
+            - snack
+            - lunch
+            - afternoon_snack
+    menu_number:
+      description: Menu number to rate.
+      example: "2"
+      required: true
+    quantity:
+      description: Quantity rating (1-10).
+      example: 8
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    quality:
+      description: Quality rating (1-10).
+      example: 9
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    entry_id:
+      description: Config entry ID to target when multiple EduPage entries are loaded.
+      example: 01J4XYZABC
+      required: false
+
+send_message:
+  description: Send a message to EduPage recipients (students or teachers).
+  fields:
+    recipients:
+      description: One or more recipients, by numeric person ID or case-insensitive name.
+      example: ["Test User", "12345"]
+      required: true
+    body:
+      description: Message body text.
+      example: "Please bring your homework tomorrow."
+      required: true
+    entry_id:
+      description: Config entry ID to target when multiple EduPage entries are loaded.
+      example: 01J4XYZABC
+      required: false

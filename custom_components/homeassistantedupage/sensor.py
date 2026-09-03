@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from datetime import datetime
 
 from unidecode import unidecode
 from homeassistant.components.sensor import SensorEntity
@@ -54,6 +55,35 @@ async def async_setup_entry(
     sensors.append(
         EduPageNotificationSensor(
             coordinator, student.get("id"), student.get("name"), notifications
+        )
+    )
+    sensors.append(
+        EduPageSubstitutionSensor(
+            coordinator, student.get("id"), student.get("name"), "timetable_changes"
+        )
+    )
+    sensors.append(
+        EduPageSubstitutionSensor(
+            coordinator, student.get("id"), student.get("name"), "missing_teachers"
+        )
+    )
+    sensors.append(
+        EduPageRingingSensor(coordinator, student.get("id"), student.get("name"))
+    )
+    sensors.append(
+        EduPageTermAverageSensor(
+            coordinator,
+            student.get("id"),
+            student.get("name"),
+            term_key="first",
+        )
+    )
+    sensors.append(
+        EduPageTermAverageSensor(
+            coordinator,
+            student.get("id"),
+            student.get("name"),
+            term_key="second",
         )
     )
 
@@ -189,7 +219,9 @@ class EduPageNotificationSensor(CoordinatorEntity, SensorEntity):
             events.append(item)
         attributes["events"] = events
 
-        for i, event in enumerate(notifications):
+        # Flat per-event attributes are kept for backwards compatibility but
+        # must also be bounded to avoid unbounded state-attribute growth.
+        for i, event in enumerate(notifications[:_MAX_EVENTS]):
             attributes[f"event_{i+1}_id"] = event.event_id
             attributes[f"event_{i+1}_type"] = (
                 getattr(event.event_type, "value", None) or str(event.event_type)
@@ -218,3 +250,177 @@ class EduPageNotificationSensor(CoordinatorEntity, SensorEntity):
             if subject.subject_id == subject_id:
                 return subject.name
         return None
+
+
+def _subject_slug(name):
+    return unidecode(name).replace(" ", "_").lower()
+
+
+def _grade_numeric(grade_n):
+    """Best-effort numeric conversion of a grade value for averaging."""
+    if grade_n is None:
+        return None
+    if isinstance(grade_n, (int, float)):
+        return float(grade_n)
+    try:
+        return float(str(grade_n).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+def _average(grades):
+    """Weighted-agnostic arithmetic mean of numeric grade values."""
+    values = [v for v in (_grade_numeric(g.grade_n) for g in grades) if v is not None]
+    return round(sum(values) / len(values), 2) if values else None
+
+
+class EduPageSubstitutionSensor(CoordinatorEntity, SensorEntity):
+    """Sensor for timetable changes or missing teachers for the current day."""
+
+    def __init__(self, coordinator, student_id, student_name, data_key):
+        """data_key is 'timetable_changes' or 'missing_teachers'."""
+        super().__init__(coordinator)
+
+        self._student_id = student_id
+        self._student_name = _subject_slug(student_name)
+        self._data_key = data_key
+        label = (
+            "Timetable Changes"
+            if data_key == "timetable_changes"
+            else "Missing Teachers"
+        )
+
+        self._attr_name = f"Edupage - {label} {student_name}"
+
+        self._unique_id = f"edupage_{data_key}_{self._student_id}_{self._student_name}"
+
+    @property
+    def unique_id(self):
+        """Return a unique identifier for this sensor."""
+        return self._unique_id
+
+    @property
+    def state(self):
+        return len(self.coordinator.data.get(self._data_key, []))
+
+    @property
+    def extra_state_attributes(self):
+        entries = self.coordinator.data.get(self._data_key, [])
+        attributes = {
+            "student": self.coordinator.data.get("student", {}),
+            "unique_id": self._unique_id,
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "count": len(entries),
+            "last_updated": self.coordinator.data.get("last_updated"),
+        }
+        if self._data_key == "timetable_changes":
+            for i, change in enumerate(entries):
+                attributes[f"change_{i+1}_class"] = change.change_class
+                attributes[f"change_{i+1}_lesson"] = change.lesson_n
+                attributes[f"change_{i+1}_title"] = change.title
+                attributes[f"change_{i+1}_action"] = change.action
+        else:
+            for i, teacher in enumerate(entries):
+                attributes[f"teacher_{i+1}_name"] = teacher.name
+                attributes[f"teacher_{i+1}_id"] = teacher.person_id
+        return attributes
+
+
+class EduPageRingingSensor(CoordinatorEntity, SensorEntity):
+    """Sensor exposing the next school-bell ringing time."""
+
+    def __init__(self, coordinator, student_id, student_name):
+        super().__init__(coordinator)
+        self._student_id = student_id
+        self._student_name = _subject_slug(student_name)
+        self._attr_name = f"Edupage - Next Ringing {student_name}"
+        self._unique_id = (
+            f"edupage_next_ringing_{self._student_id}_{self._student_name}"
+        )
+
+    @property
+    def unique_id(self):
+        return self._unique_id
+
+    @property
+    def state(self):
+        ringing = self.coordinator.data.get("next_ringing")
+        if ringing is None:
+            return "unknown"
+        return ringing.time.strftime("%H:%M")
+
+    @property
+    def extra_state_attributes(self):
+        ringing = self.coordinator.data.get("next_ringing")
+        attrs = {
+            "student": self.coordinator.data.get("student", {}),
+            "unique_id": self._unique_id,
+        }
+        if ringing is not None:
+            attrs["ringing_type"] = ringing.type.name
+            attrs["time"] = ringing.time.strftime("%H:%M")
+            attrs["date"] = datetime.now().strftime("%Y-%m-%d")
+        return attrs
+
+
+class EduPageTermAverageSensor(CoordinatorEntity, SensorEntity):
+    """Sensor showing grade count and average for a specific school term.
+
+    Reads the per-term grades live from the coordinator each poll, so the
+    average follows later coordinator updates instead of freezing the initial
+    snapshot.
+    """
+
+    def __init__(self, coordinator, student_id, student_name, term_key):
+        super().__init__(coordinator)
+        self._student_id = student_id
+        self._student_name = _subject_slug(student_name)
+        self._term_key = term_key
+        term_label = "1st" if term_key == "first" else "2nd"
+
+        self._attr_name = f"Edupage - {term_label} Term Average {student_name}"
+
+        self._unique_id = (
+            f"edupage_term_{term_key}_{self._student_id}_{self._student_name}"
+        )
+
+    @property
+    def unique_id(self):
+        return self._unique_id
+
+    @property
+    def _current_grades(self):
+        return self.coordinator.data.get("grades_per_term", {}).get(
+            self._term_key, []
+        )
+
+    @property
+    def _school_year(self):
+        return self.coordinator.data.get("school_year")
+
+    @property
+    def state(self):
+        avg = _average(self._current_grades)
+        return avg if avg is not None else "unknown"
+
+    @property
+    def extra_state_attributes(self):
+        grades = self._current_grades
+        by_subject = defaultdict(list)
+        for grade in grades:
+            by_subject[grade.subject_name or grade.subject_id].append(grade)
+
+        subject_averages = {
+            str(subject): _average(subject_grades)
+            for subject, subject_grades in by_subject.items()
+        }
+
+        return {
+            "student": self.coordinator.data.get("student", {}),
+            "unique_id": self._unique_id,
+            "school_year": self._school_year,
+            "term": self._term_key,
+            "grade_count": len(grades),
+            "grade_average": _average(grades),
+            "subject_averages": subject_averages,
+        }

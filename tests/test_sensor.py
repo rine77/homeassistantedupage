@@ -125,3 +125,16 @@ async def test_events_list_keeps_first_max_events(hass, coordinator):
     # first _MAX_EVENTS entries are kept when the list is capped.
     assert events[0]["id"] == 0
     assert events[-1]["id"] == _MAX_EVENTS - 1
+
+
+async def test_flat_event_attributes_are_bounded(hass, coordinator):
+    """The flat event_N_* attributes must also be capped at _MAX_EVENTS."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(i, "homework", f"n{i}", datetime(2026, 9, 1))
+        for i in range(_MAX_EVENTS + 20)
+    ]
+    attrs = sensor.extra_state_attributes
+    # Only the first _MAX_EVENTS events are emitted as flat attributes.
+    assert attrs[f"event_{_MAX_EVENTS}_id"] == _MAX_EVENTS - 1
+    assert f"event_{_MAX_EVENTS + 1}_id" not in attrs

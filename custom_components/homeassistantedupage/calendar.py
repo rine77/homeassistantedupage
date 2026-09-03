@@ -13,7 +13,6 @@ from edupage_api.timetables import Lesson
 from edupage_api.lunches import Meal
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
-_LOGGER.debug("CALENDAR Edupage calendar.py is being loaded")
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     """Set up Edupage calendar entities."""
@@ -26,28 +25,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     edupage_calendar = EdupageCalendar(coordinator, entry.data)
     calendars.append(edupage_calendar)
 
-    if coordinator.data.get("canteen_calendar_enabled", {}):
-        edupage_canteen_calendar = EdupageCanteenCalendar(coordinator, entry.data)
-        calendars.append(edupage_canteen_calendar)
-        _LOGGER.debug("Canteen calendar added")
-    else:
-        _LOGGER.debug("Canteen calendar skipped, calendar disabled due to exceptions")
+    edupage_canteen_calendar = EdupageCanteenCalendar(coordinator, entry.data)
+    calendars.append(edupage_canteen_calendar)
 
     async_add_entities(calendars)
 
     _LOGGER.debug("CALENDAR async_setup_entry finished.")
 
-async def async_added_to_hass(self) -> None:
-    """When entity is added to hass."""
-    await super().async_added_to_hass()
-    _LOGGER.debug("CALENDAR added to hass")
-
-    if self.coordinator:
-        self.async_on_remove(
-            self.coordinator.async_add_listener(
-                self._handle_coordinator_update, None
-            )
-        )
 
 class EdupageCalendar(CoordinatorEntity, CalendarEntity):
     """Representation of an Edupage calendar entity."""
@@ -57,7 +41,6 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         self._data = data
         self._events = []
         self._attr_name = "Edupage Calendar"
-        _LOGGER.debug(f"CALENDAR Initialized EdupageCalendar with data: {data}")
 
     @property
     def unique_id(self):
@@ -72,17 +55,8 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         return f"Edupage - {student_name}"
 
     @property
-    def extra_state_attributes(self):
-        """Return the extra state attributes."""
-        return {
-            "unique_id": self.unique_id,
-            "other_info": "debug info"
-        }
-
-    @property
     def available(self) -> bool:
         """Return True if the calendar is available."""
-        _LOGGER.debug("CALENDAR Checking availability of Edupage Calendar")
         return True
 
     @property
@@ -94,11 +68,8 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         """Return events in a specific date range."""
         events = []
 
-        _LOGGER.debug(f"CALENDAR Fetching events between {start_date} and {end_date}")
         timetable = self.coordinator.data.get("timetable", {})
         timetable_canceled = self.coordinator.data.get("cancelled_lessons", {})
-        _LOGGER.debug(f"CALENDAR Coordinator data: {self.coordinator.data}")
-        _LOGGER.debug(f"CALENDAR Fetched timetable data: {timetable}")
 
         if not timetable:
             _LOGGER.warning("CALENDAR Timetable data is missing.")
@@ -110,7 +81,6 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
             events.extend(self.get_events(timetable_canceled, current_date))
             current_date += timedelta(days=1)
 
-        _LOGGER.debug(f"CALENDAR Fetched {len(events)} events from {start_date} to {end_date}")
         return events
 
     def get_events(self, timetable, current_date):
@@ -118,19 +88,15 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         day_timetable = timetable.get(current_date)
         if day_timetable:
             for lesson in day_timetable:
-
-                _LOGGER.debug(f"CALENDAR Lesson attributes: {vars(lesson)}")
-
                 events.append(
                     self.map_lesson_to_calender_event(lesson, current_date)
                 )
         return events
 
-
     def map_lesson_to_calender_event(self, lesson: Lesson, day: date) -> CalendarEvent:
         teacher_names = [teacher.name for teacher in lesson.teachers] if lesson.teachers else []
         teachers = ", ".join(teacher_names) if teacher_names else "Unknown Teacher"
-        description=f"Teacher(s): {teachers}"
+        description = f"Teacher(s): {teachers}"
         room = None
         if lesson.classrooms:
             room = lesson.classrooms[0].name
@@ -144,45 +110,63 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         cal_event = CalendarEvent(
             start=start_time,
             end=end_time,
-            summary= lesson_subject_prefix + lesson_subject,
+            summary=lesson_subject_prefix + lesson_subject,
             description=description,
-            location=room
+            location=room,
         )
         return cal_event
 
-    # Funktion zum Filtern und Finden der nächsten passenden Lesson
     def find_lesson_now_or_next_across_days(self) -> Optional[CalendarEvent]:
         lessons_by_day = self.coordinator.data.get("timetable", {})
-        current_time = datetime.now().time()  # Aktuelle Uhrzeit
-        current_day = datetime.date(datetime.now())  # Aktueller Wochentag
+        current_time = datetime.now().time()
+        current_day = datetime.now().date()
 
-        # Schritt 1: Suche im aktuellen Tag
+        # Step 1: look for a lesson currently in progress.
         lessons_today = lessons_by_day.get(current_day, [])
-        current_lesson = next((lesson for lesson in lessons_today
-                               if lesson.start_time <= current_time <= lesson.end_time), None)
-
+        current_lesson = next(
+            (
+                lesson
+                for lesson in lessons_today
+                if lesson.start_time <= current_time <= lesson.end_time
+            ),
+            None,
+        )
         if current_lesson:
-            return self.map_lesson_to_calender_event(current_lesson, current_day)  # Falls eine aktuelle Lesson gefunden wird
+            return self.map_lesson_to_calender_event(current_lesson, current_day)
 
-        # Schritt 2: Finde die nächste Lesson heute oder an zukünftigen Tagen
+        # Step 2: find the next lesson today or on a future day.
+        # Compare full datetimes (day + start_time) so a lesson today at 10:00
+        # is always selected ahead of a lesson tomorrow at 08:00.
+        next_lesson_day = None
         next_lesson = None
-        for day, lessons in sorted(lessons_by_day.items(), key=lambda x: x[0]):  # Nach Tagen sortieren
-            # Überspringe vergangene Tage
+        next_lesson_start = None
+        for day, lessons in sorted(lessons_by_day.items(), key=lambda x: x[0]):
             if day < current_day:
                 continue
+            future_lessons = [
+                lesson
+                for lesson in lessons
+                if day > current_day or lesson.start_time > current_time
+            ]
+            if not future_lessons:
+                continue
+            candidate_start = min(
+                (datetime.combine(day, lesson.start_time) for lesson in future_lessons)
+            )
+            if next_lesson_start is None or candidate_start < next_lesson_start:
+                next_lesson_start = candidate_start
+                next_lesson = next(
+                    lesson
+                    for lesson in future_lessons
+                    if datetime.combine(day, lesson.start_time) == candidate_start
+                )
+                next_lesson_day = day
 
-            # Prüfe Lektionen heute (nach current_time) oder in zukünftigen Tagen
-            future_lessons = [lesson for lesson in lessons if day > current_day or lesson.start_time > current_time]
-            if future_lessons:
-                # Die früheste Lesson finden
-                next_lesson_today_or_future = min(future_lessons, key=lambda x: x.start_time)
-                if next_lesson is None or next_lesson_today_or_future.start_time < next_lesson.start_time:
-                    next_lesson = next_lesson_today_or_future
-
-                if next_lesson:
-                    return self.map_lesson_to_calender_event(next_lesson, day)
+        if next_lesson and next_lesson_day:
+            return self.map_lesson_to_calender_event(next_lesson, next_lesson_day)
 
         return None
+
 
 class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
     """Representation of an Edupage canteen calendar entity."""
@@ -192,7 +176,6 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
         self._data = data
         self._events = []
         self._attr_name = "Edupage Canteen Calendar"
-        _LOGGER.debug(f"CALENDAR Initialized EdupageCanteenCalendar with data: {data}")
 
     @property
     def unique_id(self):
@@ -207,32 +190,20 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
         return f"Edupage Canteen - {student_name}"
 
     @property
-    def extra_state_attributes(self):
-        """Return the extra state attributes."""
-        return {
-            "unique_id": self.unique_id,
-            "other_info": "debug info"
-        }
-
-    @property
     def available(self) -> bool:
         """Return True if the calendar is available."""
-        _LOGGER.debug("CALENDAR Checking availability of Edupage Canteen Calendar")
         return True
 
     @property
     def event(self):
-        """Return the next upcoming event or None if no event exists."""
+        """Return the next upcoming meal event or None if none exists."""
         return self.find_meal_now_or_next_across_days()
 
     async def async_get_events(self, hass, start_date: datetime, end_date: datetime):
-        """Return events in a specific date range."""
+        """Return canteen meal events in a specific date range."""
         events = []
 
-        _LOGGER.debug(f"CALENDAR Fetching canteen calendar between {start_date} and {end_date}")
         canteen_menu = self.coordinator.data.get("canteen_menu", {})
-        _LOGGER.debug(f"CALENDAR Coordinator data: {self.coordinator.data}")
-        _LOGGER.debug(f"CALENDAR Fetched canteen_menu data: {canteen_menu}")
 
         if not canteen_menu:
             _LOGGER.warning("CALENDAR Canteen menu data is missing.")
@@ -243,7 +214,6 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
             events.extend(self.get_events(canteen_menu, current_date))
             current_date += timedelta(days=1)
 
-        _LOGGER.debug(f"CALENDAR Fetched {len(events)} events from {start_date} to {end_date}")
         return events
 
     def get_events(self, canteen_menu, current_date):
@@ -251,28 +221,78 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
         daily_menu = canteen_menu.get(current_date)
         if daily_menu:
             for meal in daily_menu:
-                _LOGGER.debug(f"CALENDAR Meal attributes: {vars(meal)}")
-                events.append(
-                    self.map_meal_to_calender_event(meal, current_date)
-                )
+                events.append(self.map_meal_to_calender_event(meal, current_date))
         return events
 
-
-    def map_meal_to_calender_event(self, meal: Meal, day: date) -> CalendarEvent:
+    def map_meal_to_calender_event(self, meal: Meal, day: date) -> Optional[CalendarEvent]:
         local_tz = ZoneInfo(self.hass.config.time_zone)
-        start_time = datetime.combine(day, meal.served_from.time()).astimezone(local_tz)
-        end_time = datetime.combine(day, meal.served_to.time()).astimezone(local_tz)
-        summary = meal.meal_type.name
+        if meal.served_from is None or meal.served_to is None:
+            # No serving window exposed by EduPage; show an all-event-day slot.
+            start_time = datetime.combine(day, datetime.min.time()).astimezone(local_tz)
+            end_time = start_time + timedelta(days=1)
+        else:
+            start_time = datetime.combine(day, meal.served_from.time()).astimezone(local_tz)
+            end_time = datetime.combine(day, meal.served_to.time()).astimezone(local_tz)
+            if end_time <= start_time:
+                end_time = end_time + timedelta(days=1)
+
+        summary = meal.meal_type.name.replace("_", " ").capitalize()
         description = meal.title
 
-        cal_event = CalendarEvent(
+        return CalendarEvent(
             start=start_time,
             end=end_time,
             summary=summary,
-            description=description
+            description=description,
         )
-        return cal_event
 
     def find_meal_now_or_next_across_days(self) -> Optional[CalendarEvent]:
-        # TODO implement
+        canteen_menu = self.coordinator.data.get("canteen_menu", {})
+        now = datetime.now()
+        today = now.date()
+
+        # Each entry is (day, meal, start_datetime_or_None, end_datetime_or_None).
+        # All values are datetimes (or None) so they can be compared against
+        # ``now`` without mixing ``datetime.time`` and ``datetime.datetime``.
+        meals_by_time = []
+        for day, meals in canteen_menu.items():
+            for meal in meals:
+                if day < today:
+                    continue
+                if meal.served_from is None:
+                    # No serving window exposed by EduPage: the meal occupies
+                    # the whole day (midnight -> next midnight).
+                    start_dt = datetime.combine(day, datetime.min.time())
+                    end_dt = start_dt + timedelta(days=1)
+                    meals_by_time.append((day, meal, start_dt, end_dt))
+                    continue
+                start_dt = datetime.combine(day, meal.served_from.time())
+                end_dt = (
+                    datetime.combine(day, meal.served_to.time())
+                    if meal.served_to
+                    else None
+                )
+                meals_by_time.append((day, meal, start_dt, end_dt))
+
+        # A meal currently being served is the "event" right now.
+        for day, meal, start_dt, end_dt in meals_by_time:
+            if day == today and start_dt is not None and end_dt is not None:
+                if start_dt <= now <= end_dt:
+                    return self.map_meal_to_calender_event(meal, day)
+
+        # Otherwise the next future meal.
+        next_meal = None
+        next_day = None
+        next_start = None
+        for day, meal, start_dt, end_dt in meals_by_time:
+            candidate = start_dt or datetime.combine(day, datetime.min.time())
+            if candidate > now:
+                if next_start is None or candidate < next_start:
+                    next_start = candidate
+                    next_meal = meal
+                    next_day = day
+
+        if next_meal and next_day:
+            return self.map_meal_to_calender_event(next_meal, next_day)
+
         return None

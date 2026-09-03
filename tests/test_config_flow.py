@@ -60,9 +60,16 @@ def _fake_reload_result(self, _entry, data_updates=None, reason=None):
 
 
 @pytest.fixture
-def config_entry(hass, mock_config_entry):
-    """A config entry holding a stored (password-free) session, registered on hass."""
-    return mock_config_entry(
+async def config_entry(hass):
+    """A config entry holding a stored (password-free) session, registered on hass.
+
+    Uses the public config_entries.async_add API (with setup stubbed out for the
+    whole test) so the entry is registered without depending on a plugin-specific
+    mock_config_entry fixture or on Home Assistant's private _entries internals.
+    """
+    entry = config_entries.ConfigEntry(
+        version=1,
+        minor_version=1,
         domain=DOMAIN,
         title="Edupage (Max Kovaľ)",
         data={
@@ -71,10 +78,21 @@ def config_entry(hass, mock_config_entry):
             CONF_STUDENT_ID: 123,
             CONF_STUDENT_NAME: "Max Kovaľ",
         },
+        source="user",
+        entry_id="test_entry",
         unique_id="test_unique_id",
-        version=1,
-        minor_version=1,
+        discovery_keys=set(),
+        options={},
     )
+    hass.data.setdefault(DOMAIN, {})
+    with patch(
+        "homeassistant.config_entries.ConfigEntries.async_setup",
+        return_value=AsyncMock(return_value=True),
+    ):
+        await hass.config_entries.async_add(entry)
+        # Keep the patch active while the test runs so the background task
+        # triggered by async_add does not attempt a real integration setup.
+        yield entry
 
 
 async def test_async_step_user_without_2fa(hass: HomeAssistant):

@@ -38,17 +38,6 @@ Features currently being developed in open pull requests include modern app-code
 2. Copy `custom_components/homeassistantedupage` into the `custom_components` directory of your Home Assistant configuration.
 3. Restart Home Assistant.
 
-The resulting directory should look like this:
-
-```text
-config/
-â””â”€â”€ custom_components/
-    â””â”€â”€ homeassistantedupage/
-        â”œâ”€â”€ __init__.py
-        â”œâ”€â”€ calendar.py
-        â”œâ”€â”€ config_flow.py
-        â”œâ”€â”€ manifest.json
-        â””â”€â”€ sensor.py
 ```
 
 ## Configuration

@@ -301,11 +301,11 @@ class EduPageSubstitutionSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def state(self):
-        return len(self.coordinator.data.get(self._data_key, []))
+        return len(self.coordinator.data.get(self._data_key) or [])
 
     @property
     def extra_state_attributes(self):
-        entries = self.coordinator.data.get(self._data_key, [])
+        entries = self.coordinator.data.get(self._data_key) or []
         attributes = {
             "student": self.coordinator.data.get("student", {}),
             "unique_id": self._unique_id,

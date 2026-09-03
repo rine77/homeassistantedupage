@@ -200,7 +200,7 @@ async def test_reconfigure_uses_reload(hass: HomeAssistant, config_entry):
         return_value=api,
     ), patch(
         "homeassistant.config_entries.ConfigFlow.async_update_reload_and_abort",
-        side_effect=_fake_reload_result,
+        _fake_reload_result,
     ):
         init = await hass.config_entries.flow.async_init(
             DOMAIN,

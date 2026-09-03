@@ -51,6 +51,7 @@
       "no_students_found": "No students were found on this account.",
       "reconfigured": "Successfully updated the stored session.",
       "reconfigure_failed": "Re-authentication failed: {error}",
+      "reauth_unsuccessful": "Re-authentication unsuccessful: {error}",
       "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     }
   }

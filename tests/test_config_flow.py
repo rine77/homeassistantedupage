@@ -7,7 +7,7 @@ mocked so no live network or credentials are required.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant import data_entry_flow
-from homeassistant.components import config_entries
+from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 
 from custom_components.homeassistantedupage.const import (
@@ -21,9 +21,19 @@ from custom_components.homeassistantedupage.config_flow import EdupageConfigFlow
 
 
 def _entry_data():
+    # The initial (user) step input: the user types username/password/subdomain.
     return {
         "username": "user",
         "password": "pw",
+        "subdomain": "mshviezdoslavova1",
+    }
+
+
+def _stored_entry_data():
+    # The persisted config-entry data: no password is stored, only the
+    # account identity and the session.
+    return {
+        "username": "user",
         "subdomain": "mshviezdoslavova1",
     }
 
@@ -38,6 +48,7 @@ def _student():
 def _api_logged_in():
     api = MagicMock()
     api.is_logged_in = True
+    api.login.return_value = None  # no 2FA required
     api.session.cookies.get_dict.return_value = {"PHPSESSID": "phpsess_123"}
     api.get_students.return_value = _student()
     return api
@@ -87,12 +98,12 @@ async def test_async_step_user_with_2fa(hass: HomeAssistant):
 
 
 async def test_reauth_success_aborts_and_reloads_entry(hass: HomeAssistant):
-    """Reauthentication updates the PHPSESSID and reloads the config entry."""
+    """Reauthentication prompts for the password, updates the PHPSESSID and reloads."""
     entry = config_entries.ConfigEntry(
         version=1,
         domain=DOMAIN,
         title="Edupage (Max Kovaľ)",
-        data={**_entry_data(), CONF_PHPSESSID: "old", CONF_STUDENT_ID: 123, CONF_STUDENT_NAME: "Max Kovaľ"},
+        data={**_stored_entry_data(), CONF_PHPSESSID: "old", CONF_STUDENT_ID: 123, CONF_STUDENT_NAME: "Max Kovaľ"},
         source="user",
         entry_id="test_entry",
         options={},
@@ -119,9 +130,20 @@ async def test_reauth_success_aborts_and_reloads_entry(hass: HomeAssistant):
         "homeassistant.config_entries.ConfigFlow.async_update_reload_and_abort",
         _fake_reload,
     ):
-        result = await hass.config_entries.flow.async_init(
+        init = await hass.config_entries.flow.async_init(
             DOMAIN,
             context={"source": config_entries.SOURCE_REAUTH, "entry_id": "test_entry"},
+        )
+        # The stored password is not used: the user is prompted to re-enter it.
+        assert init["type"] is data_entry_flow.FlowResultType.FORM
+        assert init["step_id"] == "reconfigure"
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            user_input={
+                "username": "user",
+                "password": "pw",
+                "subdomain": "mshviezdoslavova1",
+            },
         )
 
     assert result["type"] is data_entry_flow.FlowResultType.ABORT
@@ -139,12 +161,12 @@ async def test_reauth_success_aborts_and_reloads_entry(hass: HomeAssistant):
 
 
 async def test_reconfigure_uses_reload(hass: HomeAssistant):
-    """Reconfiguration ends in a reload so the running wrapper picks up the new PHPSESSID."""
+    """Reconfiguration prompts for the password and ends in a reload."""
     entry = config_entries.ConfigEntry(
         version=1,
         domain=DOMAIN,
         title="Edupage (Max Kovaľ)",
-        data={**_entry_data(), CONF_PHPSESSID: "old", CONF_STUDENT_ID: 123, CONF_STUDENT_NAME: "Max Kovaľ"},
+        data={**_stored_entry_data(), CONF_PHPSESSID: "old", CONF_STUDENT_ID: 123, CONF_STUDENT_NAME: "Max Kovaľ"},
         source="user",
         entry_id="test_entry",
         options={},
@@ -162,9 +184,19 @@ async def test_reconfigure_uses_reload(hass: HomeAssistant):
         "homeassistant.config_entries.ConfigFlow.async_update_reload_and_abort",
         return_value=MagicMock(),
     ):
-        result = await hass.config_entries.flow.async_init(
+        init = await hass.config_entries.flow.async_init(
             DOMAIN,
             context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": "test_entry"},
+        )
+        # The reconfigure flow also asks the user to re-enter the password.
+        assert init["step_id"] == "reconfigure"
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            user_input={
+                "username": "user",
+                "password": "pw",
+                "subdomain": "mshviezdoslavova1",
+            },
         )
 
     assert result["type"] is data_entry_flow.FlowResultType.ABORT

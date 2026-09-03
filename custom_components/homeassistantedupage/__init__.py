@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -25,7 +25,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN] = {}
 
     username = entry.data[CONF_USERNAME]
-    password = entry.data[CONF_PASSWORD]
     subdomain = entry.data[CONF_SUBDOMAIN]
     phpsessid = entry.data[CONF_PHPSESSID]
     student_id = entry.data[CONF_STUDENT_ID]
@@ -34,7 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         # Session-only: loads the stored PHPSESSID, never prompts for 2FA again.
-        await edupage.login(username, password, subdomain, phpsessid)
+        await edupage.login(username, subdomain, phpsessid)
         _LOGGER.debug("INIT login_success (session reloaded)")
     except EdupageSessionExpired as e:
         _LOGGER.error("INIT stored session invalid/expired: %s", e)
@@ -52,7 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         async with fetch_lock:
             try:
-                await edupage.login(username, password, subdomain, phpsessid)
+                await edupage.login(username, subdomain, phpsessid)
 
                 students = await edupage.get_students()
                 student = None

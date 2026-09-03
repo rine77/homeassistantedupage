@@ -50,7 +50,8 @@
       "already_configured": "Das Gerät ist bereits konfiguriert",
       "no_students_found": "Auf diesem Konto wurden keine Schüler gefunden.",
       "reconfigured": "Die gespeicherte Sitzung wurde erfolgreich aktualisiert.",
-      "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}"
+      "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}",
+      "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}"
     }
   }
 }

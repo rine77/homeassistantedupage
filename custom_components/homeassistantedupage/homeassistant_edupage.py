@@ -39,7 +39,7 @@ class Edupage:
         login = Login(self.api)
         login.reload_data(subdomain, sessionid, username)
 
-    async def login(self, username, password, subdomain, sessionid):
+    async def login(self, username, subdomain, sessionid):
         """Load the stored session. Never starts username/password login."""
         self.sessionid = sessionid
         try:

@@ -176,8 +176,14 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         cookies = api.session.cookies.get_dict()
         phpsess = cookies.get("PHPSESSID")
-        user_input[CONF_PHPSESSID] = phpsess
-        self.user_data = user_input
+        # Persist only what is needed for later authentication: the account
+        # identity and the freshly-obtained session. The password is never
+        # stored in the config entry.
+        self.user_data = {
+            CONF_USERNAME: user_input[CONF_USERNAME],
+            CONF_SUBDOMAIN: user_input[CONF_SUBDOMAIN],
+            CONF_PHPSESSID: phpsess,
+        }
         self.students = {student.person_id: student.name for student in students}
         return await self.async_step_select_student()
 
@@ -211,107 +217,138 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reauth(self, user_input=None):
         """Triggered when Home Assistant detects an expired/invalid stored session.
 
-        Reuses the reconfigure flow, which re-logs-in (prompting for a 2FA code
-        if the account has 2FA enabled), stores a fresh PHPSESSID and reloads
-        the config entry. Completed as a reauthentication so the user is not
-        asked to re-enter their credentials.
+        Reuses the reconfigure flow, which prompts for the password, re-logs-in
+        (with a 2FA code prompt if the account has 2FA enabled), stores a fresh
+        PHPSESSID and reloads the config entry. Completed as a reauthentication.
         """
         self._reauth = True
         return await self.async_step_reconfigure(user_input)
 
     async def async_step_reconfigure(self, user_input=None):
-        """Re-login (with 2FA if required) to refresh an expired stored session."""
+        """Re-login to refresh an expired stored session.
+
+        The password is not stored in the config entry, so it is prompted for
+        fresh on each reauthentication. Username and subdomain are pre-filled
+        from the existing entry.
+        """
         if not self._reauth:
             self._reauth = False
         entry = self._get_reconfigure_entry()
         if entry is None:
             return self.async_abort(reason="already_configured")
 
-        if user_input is not None:
-            # Only reached when a code step was shown; combine with login below.
-            pass
-
-        api = Edupage()
         self._reconfig_entry = entry
         errors = {}
         second_factor = None
-        try:
-            second_factor = await self.hass.async_add_executor_job(
-                api.login,
-                entry.data[CONF_USERNAME],
-                entry.data[CONF_PASSWORD],
-                entry.data[CONF_SUBDOMAIN],
-            )
-        except CaptchaException as e:
-            _LOGGER.debug(
-                "EduPage re-login captcha for %s@%s: %r",
-                entry.data.get(CONF_USERNAME),
-                entry.data.get(CONF_SUBDOMAIN),
-                e,
-            )
-            errors["base"] = "captcha_required"
-        except BadCredentialsException as e:
-            _LOGGER.debug(
-                "EduPage re-login rejected for %s@%s: %r",
-                entry.data.get(CONF_USERNAME),
-                entry.data.get(CONF_SUBDOMAIN),
-                e,
-            )
-            if "two-factor fields" in str(e):
-                # Modern 2FA page: `edupage-api` can no longer parse the
-                # challenge from hidden inputs. Drive the app-code flow
-                # ourselves so the existing TOTP step can be shown.
-                try:
-                    second_factor = await self.hass.async_add_executor_job(
-                        start_two_factor,
-                        api,
-                        entry.data[CONF_USERNAME],
-                        entry.data[CONF_PASSWORD],
-                        entry.data[CONF_SUBDOMAIN],
-                    )
-                except BadCredentialsException as e2:
+
+        if user_input is not None:
+            username = user_input.get(CONF_USERNAME) or entry.data[CONF_USERNAME]
+            password = user_input[CONF_PASSWORD]
+            subdomain = user_input.get(CONF_SUBDOMAIN) or entry.data[CONF_SUBDOMAIN]
+
+            api = Edupage()
+            try:
+                second_factor = await self.hass.async_add_executor_job(
+                    api.login,
+                    username,
+                    password,
+                    subdomain,
+                )
+            except CaptchaException as e:
+                _LOGGER.debug(
+                    "EduPage re-login captcha for %s@%s: %r",
+                    username,
+                    subdomain,
+                    e,
+                )
+                errors["base"] = "captcha_required"
+            except BadCredentialsException as e:
+                _LOGGER.debug(
+                    "EduPage re-login rejected for %s@%s: %r",
+                    username,
+                    subdomain,
+                    e,
+                )
+                if "two-factor fields" in str(e):
+                    # Modern 2FA page: `edupage-api` can no longer parse the
+                    # challenge from hidden inputs. Drive the app-code flow
+                    # ourselves so the existing TOTP step can be shown.
+                    try:
+                        second_factor = await self.hass.async_add_executor_job(
+                            start_two_factor,
+                            api,
+                            username,
+                            password,
+                            subdomain,
+                        )
+                    except BadCredentialsException as e2:
+                        _LOGGER.error(
+                            "EduPage re-login failed: could not initialise second "
+                            "factor authentication for the configured account."
+                        )
+                        _LOGGER.debug(
+                            "EduPage 2FA init failed for %s@%s: %r",
+                            username,
+                            subdomain,
+                            e2,
+                        )
+                        errors["base"] = "invalid_auth"
+                else:
                     _LOGGER.error(
-                        "EduPage re-login failed: could not initialise second "
-                        "factor authentication for the configured account."
-                    )
-                    _LOGGER.debug(
-                        "EduPage 2FA init failed for %s@%s: %r",
-                        entry.data.get(CONF_USERNAME),
-                        entry.data.get(CONF_SUBDOMAIN),
-                        e2,
+                        "EduPage re-login failed: invalid username or password."
                     )
                     errors["base"] = "invalid_auth"
-            else:
-                _LOGGER.error("EduPage re-login failed: invalid username or password.")
+            except SecondFactorFailedException as e:
+                _LOGGER.debug(
+                    "EduPage re-login SecondFactorFailed for %s@%s: %r",
+                    username,
+                    subdomain,
+                    e,
+                )
                 errors["base"] = "invalid_auth"
-        except SecondFactorFailedException as e:
-            _LOGGER.debug(
-                "EduPage re-login SecondFactorFailed for %s@%s: %r",
-                entry.data.get(CONF_USERNAME),
-                entry.data.get(CONF_SUBDOMAIN),
-                e,
-            )
-            errors["base"] = "invalid_auth"
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.debug(
-                "EduPage re-login unexpected error for %s@%s: %r",
-                entry.data.get(CONF_USERNAME),
-                entry.data.get(CONF_SUBDOMAIN),
-                e,
-            )
-            _LOGGER.exception("Unexpected error during EduPage re-login")
-            errors["base"] = "cannot_connect"
+            except Exception as e:  # noqa: BLE001
+                _LOGGER.debug(
+                    "EduPage re-login unexpected error for %s@%s: %r",
+                    username,
+                    subdomain,
+                    e,
+                )
+                _LOGGER.exception("Unexpected error during EduPage re-login")
+                errors["base"] = "cannot_connect"
 
-        if not errors and second_factor is not None:
-            # 2FA required: capture the object, ask for the confirmation code.
-            self.reconfig_api = api
-            self.reconfig_second_factor = second_factor
-            return await self.async_step_reconfigure_code(user_input)
+            if not errors and second_factor is not None:
+                # 2FA required: capture the object, ask for the confirmation code.
+                self.reconfig_api = api
+                self.reconfig_second_factor = second_factor
+                return await self.async_step_reconfigure_code()
 
-        if not errors:
-            return await self._apply_reconfigure(api)
+            if not errors:
+                return await self._apply_reconfigure(api)
 
-        return self.async_abort(reason="reconfigure_failed", description_placeholders={"error": errors.get("base", "cannot_connect")})
+            if self._reauth:
+                return self.async_abort(
+                    reason="reauth_unsuccessful",
+                    description_placeholders={"error": errors.get("base", "cannot_connect")},
+                )
+
+        data_schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_USERNAME,
+                    default=entry.data[CONF_USERNAME],
+                ): str,
+                vol.Required(CONF_PASSWORD): str,
+                vol.Required(
+                    CONF_SUBDOMAIN,
+                    default=entry.data[CONF_SUBDOMAIN],
+                ): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=data_schema,
+            errors=errors,
+        )
 
     async def async_step_reconfigure_code(self, user_input=None):
         """Enter the confirmation code for reauthentication."""

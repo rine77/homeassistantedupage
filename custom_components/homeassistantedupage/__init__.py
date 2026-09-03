@@ -109,12 +109,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     try:
                         meals = await edupage.get_meals(current_date)
                     except Exception as e:  # noqa: BLE001
-                        _LOGGER.error(
+                        _LOGGER.warning(
                             "Failed to fetch meals data for %s: %s",
                             current_date,
                             e,
                         )
-                        break
+                        continue
                     meals_to_add = []
                     if meals is not None:
                         for meal in (meals.snack, meals.lunch, meals.afternoon_snack):

@@ -101,11 +101,14 @@ async def test_reauth_success_aborts_and_reloads_entry(hass: HomeAssistant):
     """Reauthentication prompts for the password, updates the PHPSESSID and reloads."""
     entry = config_entries.ConfigEntry(
         version=1,
+        minor_version=1,
         domain=DOMAIN,
         title="Edupage (Max Kovaľ)",
         data={**_stored_entry_data(), CONF_PHPSESSID: "old", CONF_STUDENT_ID: 123, CONF_STUDENT_NAME: "Max Kovaľ"},
         source="user",
         entry_id="test_entry",
+        unique_id="test_unique_id",
+        discovery_keys=set(),
         options={},
     )
     hass.data.setdefault(DOMAIN, {})
@@ -164,11 +167,14 @@ async def test_reconfigure_uses_reload(hass: HomeAssistant):
     """Reconfiguration prompts for the password and ends in a reload."""
     entry = config_entries.ConfigEntry(
         version=1,
+        minor_version=1,
         domain=DOMAIN,
         title="Edupage (Max Kovaľ)",
         data={**_stored_entry_data(), CONF_PHPSESSID: "old", CONF_STUDENT_ID: 123, CONF_STUDENT_NAME: "Max Kovaľ"},
         source="user",
         entry_id="test_entry",
+        unique_id="test_unique_id",
+        discovery_keys=set(),
         options={},
     )
     hass.data.setdefault(DOMAIN, {})

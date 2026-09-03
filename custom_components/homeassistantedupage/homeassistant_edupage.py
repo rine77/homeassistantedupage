@@ -171,13 +171,13 @@ class Edupage:
     async def get_meals(self, day):
         try:
             meals = await self.hass.async_add_executor_job(self.api.get_meals, day)
-            return meals or []
+            return meals
         except IndexError:
             _LOGGER.debug(
                 "EDUPAGE get_meals returned invalid/empty data for %s",
                 day,
             )
-            return []
+            return None
         except Exception as e:  # noqa: BLE001
             _LOGGER.error(
                 "EDUPAGE error updating get_meals() data for %s: %s",

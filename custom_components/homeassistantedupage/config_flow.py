@@ -184,7 +184,10 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_SUBDOMAIN: user_input[CONF_SUBDOMAIN],
             CONF_PHPSESSID: phpsess,
         }
-        self.students = {student.person_id: student.name for student in students}
+        self.students = {
+            student.person_id: student.name or str(student.person_id)
+            for student in students
+        }
         return await self.async_step_select_student()
 
     async def async_step_select_student(self, user_input=None):

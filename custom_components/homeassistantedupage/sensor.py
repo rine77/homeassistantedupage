@@ -39,7 +39,6 @@ async def async_setup_entry(
     grades_by_subject = group_grades_by_subject(grades)
 
     sensors = []
-    sensors = []
     subject_unique_ids = set()
 
     for subject in subjects:

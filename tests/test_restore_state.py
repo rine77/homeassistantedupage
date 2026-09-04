@@ -369,6 +369,20 @@ async def test_grade_failure_marks_subject_stale(hass, coord):
     assert sensor.state == 4
 
 
+async def test_section_failure_makes_available_false_without_last_value(hass, coord):
+    """The overall coordinator update succeeds but this sensor's own section
+    failed and there is no restored/last-known value to fall back on: the sensor
+    must be unavailable (not report an invented 0 as available)."""
+    sensor = _subject_sensor(coord)
+    # No restored / last-known value.
+    assert sensor._last_value is None
+    # Coordinator globally up, but this sensor's section (grades) failed.
+    coord.last_update_success = True
+    _set_data_ok(coord, grades=False)
+    assert sensor.available is False
+
+
+
 async def test_notification_failure_independent_of_grades(hass, coord):
     """Grades may fail while notifications stay fresh; each sensor is independent."""
     grade_sensor = _subject_sensor(coord)

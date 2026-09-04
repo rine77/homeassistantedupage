@@ -97,10 +97,14 @@ class StateRestoringSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
 
     @property
     def available(self):
-        """Stay available while we can still show a last-known value."""
-        if self._last_value is not None:
-            return True
-        return super().available
+        """Follow this sensor's own freshness, not just the whole coordinator.
+
+        A sensor stays available when its own data section refreshed, or while
+        it can still show a last-known value. When its section failed and there
+        is no restored/last-known value to fall back on, it must be unavailable
+        even if the overall coordinator update succeeded.
+        """
+        return self._data_is_fresh() or self._last_value is not None
 
     @property
     def data_stale(self):

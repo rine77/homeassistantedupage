@@ -12,10 +12,6 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from custom_components.homeassistantedupage.sensor import (
-    _MAX_EVENTS,
-    EduPageNotificationSensor,
-)
 from custom_components.homeassistantedupage import sensor as sensor_module
 from custom_components.homeassistantedupage.sensor import (
     _MAX_EVENTS,
@@ -220,7 +216,7 @@ def test_latest_grade_omits_missing_optional_fields(coordinator):
         _FakeGrade(
             3,
             "Short test",
-            datetime(2026, 9, 2, 9, 0),
+            None,
         )
     ]
 
@@ -237,7 +233,7 @@ def test_latest_grade_omits_missing_optional_fields(coordinator):
 
     assert attrs["latest_grade"] == 3
     assert attrs["latest_grade_title"] == "Short test"
-    assert attrs["latest_grade_date"] == "2026-09-02 09:00:00"
+    assert "latest_grade_date" not in attrs
     assert "latest_grade_teacher" not in attrs
     assert "latest_grade_comment" not in attrs
     assert "latest_grade_percent" not in attrs

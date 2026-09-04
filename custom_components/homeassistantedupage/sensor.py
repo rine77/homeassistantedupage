@@ -281,17 +281,10 @@ class EduPageSubjectSensor(StateRestoringSensor):
                 teacher_name = grade.teacher.name if grade.teacher else "unknown"
                 attributes[f"grade_{i+1}_teacher"] = teacher_name
 
-            dated_grades = [
-                grade
-                for grade in current_grades
-                if getattr(grade, "date", None) is not None
-            ]
-            latest_grade = (
-                max(dated_grades, key=lambda grade: grade.date)
-                if dated_grades
-                else current_grades[-1]
+            latest_grade = max(
+                current_grades,
+                key=lambda grade: grade.date,
             )
-
             attributes["latest_grade"] = latest_grade.grade_n
             attributes["latest_grade_title"] = latest_grade.title
 

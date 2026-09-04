@@ -216,7 +216,7 @@ def test_latest_grade_omits_missing_optional_fields(coordinator):
         _FakeGrade(
             3,
             "Short test",
-            None,
+            datetime(2026, 9, 2, 9, 0),
         )
     ]
 
@@ -233,7 +233,7 @@ def test_latest_grade_omits_missing_optional_fields(coordinator):
 
     assert attrs["latest_grade"] == 3
     assert attrs["latest_grade_title"] == "Short test"
-    assert "latest_grade_date" not in attrs
+    assert attrs["latest_grade_date"] == "2026-09-02 09:00:00"
     assert "latest_grade_teacher" not in attrs
     assert "latest_grade_comment" not in attrs
     assert "latest_grade_percent" not in attrs

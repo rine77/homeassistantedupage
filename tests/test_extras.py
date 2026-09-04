@@ -19,7 +19,7 @@ from custom_components.homeassistantedupage.homeassistant_edupage import (
     UpdateFailed,
 )
 from custom_components.homeassistantedupage.sensor import _average, _grade_numeric
-from custom_components.homeassistantedupage import __init__ as init_module
+from custom_components.homeassistantedupage import _collect_data
 
 
 class _FakeHass:
@@ -255,7 +255,7 @@ async def test_collect_data_continues_when_get_grades_fails():
     edupage = _edupage_with_grades_failing()
     student = _OkStudent()
 
-    data = await init_module._collect_data(edupage, student, "Max")
+    data = await _collect_data(edupage, student, "Max")
 
     assert data["grades"] == []
     assert data["student"] == {"id": 1, "name": "Max"}
@@ -270,7 +270,7 @@ async def test_collect_data_continues_when_get_subjects_fails():
     edupage.get_grades = AsyncMock(return_value=[])
     edupage.get_subjects = AsyncMock(side_effect=IndexError("empty subjects"))
 
-    data = await init_module._collect_data(edupage, _OkStudent(), "Max")
+    data = await _collect_data(edupage, _OkStudent(), "Max")
 
     assert data["subjects"] == []
     assert data["grades"] == []
@@ -284,7 +284,7 @@ async def test_collect_data_continues_when_get_notifications_fails():
         side_effect=AttributeError("missing field")
     )
 
-    data = await init_module._collect_data(edupage, _OkStudent(), "Max")
+    data = await _collect_data(edupage, _OkStudent(), "Max")
 
     assert data["notifications"] == []
     assert data["student"]["name"] == "Max"
@@ -296,7 +296,7 @@ async def test_collect_data_preserves_student_when_only_grades_fail():
     edupage.get_timetable = AsyncMock(return_value=[])
     edupage.get_meals = AsyncMock(return_value=None)
 
-    data = await init_module._collect_data(edupage, _OkStudent(), "Max")
+    data = await _collect_data(edupage, _OkStudent(), "Max")
 
     assert data["student"] == {"id": 1, "name": "Max"}
     assert data["grades"] == []

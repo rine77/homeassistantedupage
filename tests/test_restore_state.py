@@ -429,7 +429,11 @@ async def test_setup_uses_stored_student_when_first_refresh_fails(hass, coord):
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coord
 
     added = []
-    await async_setup_entry(hass, entry, added.append)
+
+    def _add_entities(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, entry, _add_entities)
 
     assert added, "expected at least the notification sensor to be created"
     # Construction succeeded (no unidecode(None)); the stored name survives.

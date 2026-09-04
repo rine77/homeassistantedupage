@@ -11,7 +11,6 @@
 from inspect import signature
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 
@@ -20,7 +19,6 @@ from custom_components.homeassistantedupage.const import (
     CONF_PHPSESSID,
     CONF_STUDENT_ID,
     CONF_STUDENT_NAME,
-    CONF_SUBDOMAIN,
     DOMAIN,
 )
 from custom_components.homeassistantedupage.homeassistant_edupage import (
@@ -61,35 +59,6 @@ def _entry():
     return config_entries.ConfigEntry(**kwargs)
 
 
-_ALWAYS_TRUE = {
-    name: AsyncMock(return_value=[])
-    for name in (
-        "get_grades",
-        "get_subjects",
-        "get_notifications",
-        "get_timetable_changes",
-        "get_missing_teachers",
-    )
-}
-_ALWAYS_TRUE["get_students"] = AsyncMock(return_value=[_student()])
-_ALWAYS_TRUE["get_timetable"] = AsyncMock(return_value=None)
-_ALWAYS_TRUE["get_meals"] = AsyncMock(return_value=None)
-_ALWAYS_TRUE["get_next_ringing"] = AsyncMock(return_value=None)
-_ALWAYS_TRUE["get_school_year"] = AsyncMock(return_value=None)
-_ALWAYS_TRUE["get_grades_per_term"] = AsyncMock(return_value={})
-
-
-def _mock_all_data():
-    """Return context-manager stack that patches every edupage data method."""
-    patches = [
-        patch.object(Edupage, name, new=mock)
-        for name, mock in _ALWAYS_TRUE.items()
-    ]
-    for p in patches:
-        p.start()
-    return patches
-
-
 async def test_expired_session_during_setup_starts_reauth(hass: HomeAssistant):
     entry = _entry()
     reauth = AsyncMock()
@@ -119,17 +88,16 @@ async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant)
             raise EdupageSessionExpired("expired during refresh")
         return None
 
-    patches = _mock_all_data()
-    try:
-        with patch.object(Edupage, "login", new=flaky_login), patch.object(
-            hass.config_entries,
-            "async_forward_entry_setups",
-            new=AsyncMock(return_value=None),
-        ):
-            result = await async_setup_entry(hass, entry)
-    finally:
-        for p in patches:
-            p.stop()
+    with patch.object(Edupage, "login", new=flaky_login), patch.object(
+        Edupage,
+        "get_students",
+        new=AsyncMock(return_value=[_student()]),
+    ), patch.object(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        new=AsyncMock(return_value=None),
+    ):
+        result = await async_setup_entry(hass, entry)
 
     assert result is True
     reauth.assert_not_awaited()

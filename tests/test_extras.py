@@ -302,3 +302,35 @@ async def test_collect_data_preserves_student_when_only_grades_fail():
     assert data["grades"] == []
     assert isinstance(data["timetable"], dict)
     assert isinstance(data["canteen_menu"], dict)
+
+
+async def test_collect_data_records_per_section_freshness():
+    """A grades failure sets data_ok['grades']=False while other sections are ok."""
+    edupage = _edupage_with_grades_failing()
+    data = await _collect_data(edupage, _OkStudent(), "Max")
+
+    ok = data["data_ok"]
+    assert ok["grades"] is False
+    assert ok["subjects"] is True
+    assert ok["notifications"] is True
+    assert ok["timetable"] is True
+    assert ok["canteen_menu"] is True  # get_meals returned None (success, just empty)
+    assert ok["timetable_changes"] is True
+    assert ok["missing_teachers"] is True
+    assert ok["next_ringing"] is True
+    assert ok["school_year"] is False  # get_school_year returned None
+    assert ok["grades_per_term"] is False
+
+
+async def test_collect_data_records_all_sections_ok_when_nothing_fails():
+    edupage = _edupage_with_grades_failing()
+    edupage.get_grades = AsyncMock(return_value=[])
+    edupage.get_school_year = AsyncMock(return_value=2025)
+    edupage.get_grades_for_term = AsyncMock(return_value=[])
+
+    data = await _collect_data(edupage, _OkStudent(), "Max")
+
+    ok = data["data_ok"]
+    assert ok["grades"] is True
+    assert ok["school_year"] is True
+    assert ok["grades_per_term"] is True

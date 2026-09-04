@@ -154,6 +154,19 @@ grade_1_teacher: Example Teacher
 
 Depending on the information supplied by the school, attributes may also include maximum points, percentages, class averages, and teacher comments.
 
+For convenient access to the most recent grade, each subject sensor also exposes the following attributes:
+
+- `latest_grade`
+- `latest_grade_title`
+- `latest_grade_date`
+- `latest_grade_teacher`
+- `latest_grade_comment`
+- `latest_grade_percent`
+- `latest_grade_max_points`
+- `latest_grade_class_avg_grade`
+
+The latest grade is determined by its date rather than by the order returned by EduPage. Optional attributes are omitted when the corresponding information is not provided by the school.
+
 Inspect the sensor under **Developer tools → States** to see its actual entity ID and attributes.
 
 Example template:

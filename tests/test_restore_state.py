@@ -255,3 +255,49 @@ async def test_term_average_restored_as_float(hass, coord):
     _outage(coord)
     assert sensor.state == 2.5
     assert isinstance(sensor.state, float)
+
+
+# ---------------------------------------------------------------------------
+# Non-restorable states (unknown / unavailable / invalid) are ignored
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad_state", ["unknown", "unavailable", "none", "abc", "not-a-number"]
+)
+async def test_unknown_unavailable_are_not_restored_as_real_values(
+    hass, coord, bad_state
+):
+    """Restoring 'unknown'/'unavailable'/invalid must not produce a value."""
+    sensor = _subject_sensor(coord)
+    sensor._apply_restored(_FakeState(bad_state))
+    _outage(coord)
+    # _last_value stays None -> not treated as available, no invented 0.
+    assert sensor._last_value is None
+    assert sensor.available is False
+
+
+async def test_unknown_restored_does_not_fake_grade_count(hass, coord):
+    """An 'unknown' grade count must not appear as a genuine zero."""
+    sensor = _subject_sensor(coord)
+    sensor._apply_restored(_FakeState("unknown"))
+    assert sensor._last_value is None
+    # Without fresh data and without a seeded value the sensor is unavailable.
+    _outage(coord)
+    assert sensor.available is False
+
+
+async def test_unknown_restored_for_term_average(hass, coord):
+    sensor = _term_sensor(coord)
+    sensor._apply_restored(_FakeState("unknown"))
+    _outage(coord)
+    assert sensor._last_value is None
+    assert sensor.available is False
+
+
+async def test_empty_string_not_restored(hass, coord):
+    sensor = _notification_sensor(coord)
+    sensor._apply_restored(_FakeState(""))
+    _outage(coord)
+    assert sensor._last_value is None
+    assert sensor.available is False

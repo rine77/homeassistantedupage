@@ -47,12 +47,28 @@ class StateRestoringSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         self._apply_restored(await self.async_get_last_state())
 
     def _apply_restored(self, last_state):
-        """Apply a recorder-restored state as the initial last-known value."""
+        """Apply a recorder-restored state as the initial last-known value.
+
+        Non-restorable restored states (``unknown``/``unavailable``/``none``)
+        are ignored, leaving ``_last_value`` as ``None`` so the sensor stays
+        unavailable rather than showing an unbacked value.
+        """
         if last_state is not None:
             self._last_value = self._coerce_restored(last_state.state)
 
     def _coerce_restored(self, raw_state):
-        """Convert a recorder-restored string state back to the native type."""
+        """Convert a recorder-restored string state back to the native type.
+
+        Returns ``None`` for non-restorable states so the entity does not
+        surface ``unknown``/``unavailable`` (or an invented ``0``) as a real
+        last-known value.
+        """
+        if raw_state is None or not raw_state or raw_state in (
+            "unknown",
+            "unavailable",
+            "none",
+        ):
+            return None
         return raw_state
 
     def _set_value(self, fresh_value):
@@ -161,7 +177,7 @@ class EduPageSubjectSensor(StateRestoringSensor):
         try:
             return int(float(raw_state))
         except (TypeError, ValueError):
-            return 0
+            return None
 
     def __init__(self, coordinator, student_id, student_name, subject_name, grades=None):
         """Initialize the sensor."""
@@ -230,7 +246,7 @@ class EduPageNotificationSensor(StateRestoringSensor):
         try:
             return int(float(raw_state))
         except (TypeError, ValueError):
-            return 0
+            return None
 
     def __init__(self, coordinator, student_id, student_name, notifications):
         """Initialize the sensor."""
@@ -369,7 +385,7 @@ class EduPageSubstitutionSensor(StateRestoringSensor):
         try:
             return int(float(raw_state))
         except (TypeError, ValueError):
-            return 0
+            return None
 
     def __init__(self, coordinator, student_id, student_name, data_key):
         """data_key is 'timetable_changes' or 'missing_teachers'."""
@@ -509,7 +525,7 @@ class EduPageTermAverageSensor(StateRestoringSensor):
         try:
             return round(float(raw_state), 2)
         except (TypeError, ValueError):
-            return "unknown"
+            return None
 
     @property
     def state(self):

@@ -40,7 +40,12 @@ class _FakeSubject:
 @pytest.fixture
 def coordinator(hass: HomeAssistant):
     """A coordinator whose data we can update to simulate polling."""
-    coord = DataUpdateCoordinator(hass, logging.getLogger("test"), name="test")
+    coord = DataUpdateCoordinator(
+        hass,
+        logging.getLogger("test"),
+        name="test",
+        config_entry=None,
+    )
     coord.data = {
         "student": {"id": 1, "name": "Max"},
         "notifications": [],

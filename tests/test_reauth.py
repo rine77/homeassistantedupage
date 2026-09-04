@@ -115,7 +115,7 @@ async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant)
         reauth.assert_awaited_once()
     finally:
         if coordinator is not None:
-            coordinator.async_shutdown()
+            await coordinator.async_shutdown()
         fwd_p.stop()
         students_p.stop()
         login_p.stop()

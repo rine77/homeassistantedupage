@@ -35,29 +35,43 @@ async def _collect_data(edupage, student, student_name):
     source (e.g. a ``get_grades()`` crash) must not discard the rest of the
     data; the failed section falls back to an empty list so timetable,
     calendar, meals and substitution data are still returned.
+
+    Per-section freshness is recorded in the returned ``data_ok`` mapping so
+    sensors can tell whether their own source data was actually refreshed this
+    poll (rather than inferring it from ``coordinator.last_update_success``,
+    which stays ``True`` when only one section fails).
     """
+    data_ok = {}
+
     try:
         grades = await edupage.get_grades()
+        data_ok["grades"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_grades failed: %s", e)
         grades = []
+        data_ok["grades"] = False
 
     try:
         subjects = await edupage.get_subjects()
+        data_ok["subjects"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_subjects failed: %s", e)
         subjects = []
+        data_ok["subjects"] = False
 
     try:
         notifications = await edupage.get_notifications()
+        data_ok["notifications"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_notifications failed: %s", e)
         notifications = []
+        data_ok["notifications"] = False
 
     today = datetime.now().date()
 
     timetable_data = {}
     timetable_data_canceled = {}
+    timetable_ok = False
     for offset in range(14):
         current_date = today + timedelta(days=offset)
         try:
@@ -71,6 +85,7 @@ async def _collect_data(edupage, student, student_name):
                 e,
             )
             break
+        timetable_ok = True
         lessons_to_add = []
         canceled_lessons = []
         if timetable is not None:
@@ -83,8 +98,10 @@ async def _collect_data(edupage, student, student_name):
             timetable_data[current_date] = lessons_to_add
         if canceled_lessons:
             timetable_data_canceled[current_date] = canceled_lessons
+    data_ok["timetable"] = timetable_ok
 
     canteen_menu_data = {}
+    canteen_ok = False
     for offset in range(14):
         current_date = today + timedelta(days=offset)
         try:
@@ -96,6 +113,7 @@ async def _collect_data(edupage, student, student_name):
                 e,
             )
             continue
+        canteen_ok = True
         meals_to_add = []
         if meals is not None:
             for meal in (meals.snack, meals.lunch, meals.afternoon_snack):
@@ -103,38 +121,48 @@ async def _collect_data(edupage, student, student_name):
                     meals_to_add.append(meal)
         if meals_to_add:
             canteen_menu_data[current_date] = meals_to_add
+    data_ok["canteen_menu"] = canteen_ok
 
     # Substitution / ringing extras for sensors.
     try:
         timetable_changes = await edupage.get_timetable_changes(today)
+        data_ok["timetable_changes"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning(
             "get_timetable_changes failed for %s: %s", today, e
         )
         timetable_changes = []
+        data_ok["timetable_changes"] = False
 
     try:
         missing_teachers = await edupage.get_missing_teachers(today)
+        data_ok["missing_teachers"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning(
             "get_missing_teachers failed for %s: %s", today, e
         )
         missing_teachers = []
+        data_ok["missing_teachers"] = False
 
     try:
         next_ringing = await edupage.get_next_ringing_time(
             datetime.now()
         )
+        data_ok["next_ringing"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_next_ringing_time failed: %s", e)
         next_ringing = None
+        data_ok["next_ringing"] = False
 
     # Per-term grades for grade-average sensors.
     school_year = None
     grades_per_term = {}
+    data_ok["grades_per_term"] = False
     try:
         school_year = await edupage.get_school_year()
+        data_ok["school_year"] = school_year is not None
         term_map = {"first": Term.FIRST, "second": Term.SECOND}
+        all_terms_ok = school_year is not None
         for term_key, term_enum in term_map.items():
             try:
                 grades_per_term[
@@ -147,9 +175,12 @@ async def _collect_data(edupage, student, student_name):
                     "get_grades_for_term(%s) failed: %s", term_key, e
                 )
                 grades_per_term[term_key] = []
+                all_terms_ok = False
+        data_ok["grades_per_term"] = all_terms_ok
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_school_year failed: %s", e)
         school_year = None
+        data_ok["school_year"] = False
 
     return {
         "student": {"id": student.person_id, "name": student_name},
@@ -164,6 +195,7 @@ async def _collect_data(edupage, student, student_name):
         "next_ringing": next_ringing,
         "school_year": school_year,
         "grades_per_term": grades_per_term,
+        "data_ok": data_ok,
         "last_updated": datetime.now().isoformat(),
     }
 

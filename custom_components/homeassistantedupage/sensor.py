@@ -18,9 +18,20 @@ _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
 _MAX_EVENTS = 50
 
 
-def _has_fresh_data(coordinator):
-    """True once the coordinator has completed a successful refresh."""
-    return coordinator.last_update_success and bool(coordinator.data)
+def _section_fresh(coordinator, key):
+    """True when a specific data section was successfully refreshed.
+
+    With partial coordinator failures (#109) ``last_update_success`` stays
+    ``True`` even when one source (e.g. grades) failed and fell back to an
+    empty list. Each sensor tracks its own section via the ``data_ok`` map
+    produced by ``_collect_data`` so it does not mistake a failed section for
+    fresh data.
+    """
+    if not coordinator.last_update_success or not coordinator.data:
+        return False
+    return bool(
+        coordinator.data.get("data_ok", {}).get(key, True),
+    )
 
 
 class StateRestoringSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
@@ -35,9 +46,12 @@ class StateRestoringSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
     Availability is intentionally __not__ tied to the coordinator alone: the
     entity stays ``available`` while it holds a last-known value, so dashboards
     can keep showing it during an outage. The ``data_stale`` attribute is set to
-    ``True`` whenever the exposed value is not backed by a fresh coordinator
-    update, so automations can avoid acting on stale data.
+    ``True`` whenever the exposed value is not backed by a fresh update of this
+    sensor's own data section, so automations can avoid acting on stale data.
     """
+
+    #: Key (in ``coordinator.data`` / ``data_ok``) identifying this sensor's data.
+    _data_key = "grades"
 
     _last_value = None
 
@@ -77,6 +91,10 @@ class StateRestoringSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             self._last_value = fresh_value
         return fresh_value
 
+    def _data_is_fresh(self):
+        """True when this sensor's own data section was refreshed."""
+        return _section_fresh(self.coordinator, self._data_key)
+
     @property
     def available(self):
         """Stay available while we can still show a last-known value."""
@@ -87,7 +105,7 @@ class StateRestoringSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
     @property
     def data_stale(self):
         """True when the exposed value is not from a fresh coordinator update."""
-        return not _has_fresh_data(self.coordinator)
+        return not self._data_is_fresh()
 
 
 def group_grades_by_subject(grades):
@@ -201,7 +219,7 @@ class EduPageSubjectSensor(StateRestoringSensor):
     @property
     def state(self):
         """Return the grade count, falling back to the last-known value."""
-        if _has_fresh_data(self.coordinator):
+        if self._data_is_fresh():
             return self._set_value(len(self._grades))
         if self._last_value is not None:
             return self._last_value
@@ -252,6 +270,7 @@ class EduPageNotificationSensor(StateRestoringSensor):
         """Initialize the sensor."""
         super().__init__(coordinator)
 
+        self._data_key = "notifications"
         self._notifications = notifications
         self._student_id = student_id
         self._student_name = unidecode(student_name).replace(" ", "_").lower()
@@ -274,7 +293,7 @@ class EduPageNotificationSensor(StateRestoringSensor):
     @property
     def state(self):
         """Return state, falling back to the last-known value."""
-        if _has_fresh_data(self.coordinator):
+        if self._data_is_fresh():
             return self._set_value(len(self._current_notifications))
         if self._last_value is not None:
             return self._last_value
@@ -411,7 +430,7 @@ class EduPageSubstitutionSensor(StateRestoringSensor):
 
     @property
     def state(self):
-        if _has_fresh_data(self.coordinator):
+        if self._data_is_fresh():
             return self._set_value(
                 len(self.coordinator.data.get(self._data_key) or [])
             )
@@ -448,6 +467,7 @@ class EduPageRingingSensor(StateRestoringSensor):
 
     def __init__(self, coordinator, student_id, student_name):
         super().__init__(coordinator)
+        self._data_key = "next_ringing"
         self._student_id = student_id
         self._student_name = _subject_slug(student_name)
         self._attr_name = f"Edupage - Next Ringing {student_name}"
@@ -462,7 +482,7 @@ class EduPageRingingSensor(StateRestoringSensor):
     @property
     def state(self):
         ringing = self.coordinator.data.get("next_ringing")
-        if _has_fresh_data(self.coordinator):
+        if self._data_is_fresh():
             if ringing is None:
                 return self._set_value("unknown")
             return self._set_value(ringing.time.strftime("%H:%M"))
@@ -495,6 +515,7 @@ class EduPageTermAverageSensor(StateRestoringSensor):
 
     def __init__(self, coordinator, student_id, student_name, term_key):
         super().__init__(coordinator)
+        self._data_key = "grades_per_term"
         self._student_id = student_id
         self._student_name = _subject_slug(student_name)
         self._term_key = term_key
@@ -529,7 +550,7 @@ class EduPageTermAverageSensor(StateRestoringSensor):
 
     @property
     def state(self):
-        if _has_fresh_data(self.coordinator):
+        if self._data_is_fresh():
             avg = _average(self._current_grades)
             return self._set_value(avg if avg is not None else "unknown")
         if self._last_value is not None:

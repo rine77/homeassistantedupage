@@ -301,3 +301,67 @@ async def test_empty_string_not_restored(hass, coord):
     _outage(coord)
     assert sensor._last_value is None
     assert sensor.available is False
+
+
+# ---------------------------------------------------------------------------
+# Partial coordinator failures: per-section freshness (#109 integration)
+# ---------------------------------------------------------------------------
+
+
+def _set_data_ok(coord, **sections):
+    """Seed the per-section freshness map on a coordinator."""
+    coord.data["data_ok"] = coord.data.get("data_ok", {}) or {}
+    coord.data["data_ok"].update(sections)
+
+
+async def test_grade_section_failure_keeps_last_value(hass, coord):
+    """When grades fail (#109) but the rest of the poll succeeds, the subject
+    sensor must not treat its data as fresh or reset to 0."""
+    sensor = EduPageSubjectSensor(coord, 1, "Max Kov", "Maths", [_Grade(1), _Grade(2), _Grade(3)])
+    # A good poll: grades fresh -> count 3 is remembered.
+    _set_data_ok(coord, grades=True)
+    assert sensor.state == 3
+    # Next poll: grades fail -> data_ok['grades'] = False, last_update_success True.
+    sensor._grades = []
+    _set_data_ok(coord, grades=False)
+    # Not fresh: keep the last-known 3, marked stale, not reset to 0.
+    assert sensor.state == 3
+    assert sensor.data_stale is True
+
+
+async def test_grade_failure_marks_subject_stale(hass, coord):
+    sensor = _subject_sensor(coord)
+    sensor._apply_restored(_FakeState("4"))
+    _set_data_ok(coord, grades=False)
+    # Whole coordinator is up but the grades section failed -> stale grade data.
+    assert sensor.data_stale is True
+    assert sensor.state == 4
+
+
+async def test_notification_failure_independent_of_grades(hass, coord):
+    """Grades may fail while notifications stay fresh; each sensor is independent."""
+    grade_sensor = _subject_sensor(coord)
+    notif_sensor = _notification_sensor(coord)
+
+    coord.data["grades"] = [_Grade(1)]
+    coord.data["notifications"] = [1, 2, 3]
+    _set_data_ok(coord, grades=False, notifications=True)
+
+    # Notifications fresh -> count 3, not stale.
+    assert notif_sensor.state == 3
+    assert notif_sensor.data_stale is False
+    # Grades failed -> not fresh, falls back to last-known (none here -> 0 path),
+    # but is marked stale.
+    assert grade_sensor.data_stale is True
+    assert grade_sensor.state == 0
+
+
+async def test_full_outage_still_makes_everything_stale(hass, coord):
+    """A complete coordinator outage keeps the whole-data fallback (no data_ok
+    needed) because last_update_success is False."""
+    sensor = _notification_sensor(coord)
+    assert sensor.state == 0
+    _set_data_ok(coord, notifications=True)
+    _outage(coord)
+    assert sensor.data_stale is True
+    assert sensor.available is True  # last-known value of 0 retained

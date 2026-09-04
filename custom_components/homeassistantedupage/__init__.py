@@ -75,9 +75,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     return {"timetable": {}}
 
                 student_name = student.name or stored_student_name or str(student.person_id)
-                grades = await edupage.get_grades()
-                subjects = await edupage.get_subjects()
-                notifications = await edupage.get_notifications()
+
+                try:
+                    grades = await edupage.get_grades()
+                except Exception as e:  # noqa: BLE001
+                    _LOGGER.warning("get_grades failed: %s", e)
+                    grades = []
+
+                try:
+                    subjects = await edupage.get_subjects()
+                except Exception as e:  # noqa: BLE001
+                    _LOGGER.warning("get_subjects failed: %s", e)
+                    subjects = []
+
+                try:
+                    notifications = await edupage.get_notifications()
+                except Exception as e:  # noqa: BLE001
+                    _LOGGER.warning("get_notifications failed: %s", e)
+                    notifications = []
 
                 today = datetime.now().date()
 

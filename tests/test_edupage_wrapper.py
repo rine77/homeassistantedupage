@@ -72,6 +72,7 @@ async def test_login_returns_true_on_valid_session():
         result = await _wrapper(api).login("user", "mshviezdoslavova1", "sess")
     assert result is True
 
+
 async def test_get_meals_returns_none_on_index_error():
     """Empty meal data represented by IndexError is treated as unavailable."""
     api = MagicMock()
@@ -101,3 +102,29 @@ async def test_get_meals_raises_update_failed_on_unexpected_error():
 
     with pytest.raises(UpdateFailed, match="connection failed"):
         await _wrapper(api).get_meals("2026-09-04")
+
+
+# ---------------------------------------------------------------------------
+# Wrapper methods must surface API failures as UpdateFailed
+# ---------------------------------------------------------------------------
+
+
+async def test_get_grades_raises_update_failed_on_api_error():
+    api = MagicMock()
+    api.get_grades.side_effect = RuntimeError("non-numeric grade")
+    with pytest.raises(UpdateFailed, match="get_grades"):
+        await _wrapper(api).get_grades()
+
+
+async def test_get_subjects_raises_update_failed_on_api_error():
+    api = MagicMock()
+    api.get_subjects.side_effect = IndexError("empty subjects")
+    with pytest.raises(UpdateFailed, match="get_subjects"):
+        await _wrapper(api).get_subjects()
+
+
+async def test_get_notifications_raises_update_failed_on_api_error():
+    api = MagicMock()
+    api.get_notifications.side_effect = AttributeError("missing field")
+    with pytest.raises(UpdateFailed, match="get_notifications"):
+        await _wrapper(api).get_notifications()

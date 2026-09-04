@@ -410,6 +410,7 @@ async def test_setup_uses_stored_student_when_first_refresh_fails(hass, coord):
 
     entry = ConfigEntry(
         version=1,
+        minor_version=1,
         domain=DOMAIN,
         title="Edupage (Max)",
         data={
@@ -421,6 +422,9 @@ async def test_setup_uses_stored_student_when_first_refresh_fails(hass, coord):
         },
         source="user",
         entry_id="entry-fallback",
+        unique_id="unique-fallback",
+        discovery_keys=set(),
+        options={},
     )
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coord
 

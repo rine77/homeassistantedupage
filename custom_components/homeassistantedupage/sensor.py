@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN
+from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
 
@@ -124,6 +124,18 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
     student = coordinator.data.get("student", {})
+
+    # Fall back to the stored student from the config entry when the first
+    # coordinator refresh has not produced student data (e.g. EduPage was
+    # unavailable at HA startup). Without this, construction would pass a
+    # None name into unidecode() and abort before RestoreEntity is attached.
+    student_id = student.get("id") if student else entry.data.get(CONF_STUDENT_ID)
+    student_name = (
+        student.get("name")
+        if student and student.get("name")
+        else entry.data.get(CONF_STUDENT_NAME)
+    )
+
     subjects = coordinator.data.get("subjects", [])
     grades = coordinator.data.get("grades", [])
     notifications = coordinator.data.get("notifications", [])
@@ -137,9 +149,10 @@ async def async_setup_entry(
 
         sensor = EduPageSubjectSensor(
             coordinator,
-            student.get("id"),
-            student.get("name"),
+            student_id,
+            student_name,
             subject.name,
+            subject.subject_id,
             subject_grades,
         )
 
@@ -151,35 +164,35 @@ async def async_setup_entry(
 
     sensors.append(
         EduPageNotificationSensor(
-            coordinator, student.get("id"), student.get("name"), notifications
+            coordinator, student_id, student_name, notifications
         )
     )
     sensors.append(
         EduPageSubstitutionSensor(
-            coordinator, student.get("id"), student.get("name"), "timetable_changes"
+            coordinator, student_id, student_name, "timetable_changes"
         )
     )
     sensors.append(
         EduPageSubstitutionSensor(
-            coordinator, student.get("id"), student.get("name"), "missing_teachers"
+            coordinator, student_id, student_name, "missing_teachers"
         )
     )
     sensors.append(
-        EduPageRingingSensor(coordinator, student.get("id"), student.get("name"))
+        EduPageRingingSensor(coordinator, student_id, student_name)
     )
     sensors.append(
         EduPageTermAverageSensor(
             coordinator,
-            student.get("id"),
-            student.get("name"),
+            student_id,
+            student_name,
             term_key="first",
         )
     )
     sensors.append(
         EduPageTermAverageSensor(
             coordinator,
-            student.get("id"),
-            student.get("name"),
+            student_id,
+            student_name,
             term_key="second",
         )
     )
@@ -197,13 +210,14 @@ class EduPageSubjectSensor(StateRestoringSensor):
         except (TypeError, ValueError):
             return None
 
-    def __init__(self, coordinator, student_id, student_name, subject_name, grades=None):
+    def __init__(self, coordinator, student_id, student_name, subject_name, subject_id, grades=None):
         """Initialize the sensor."""
         super().__init__(coordinator)
 
         self._student_id = student_id
         self._student_name = unidecode(student_name).replace(" ", "_").lower()
         self._subject_name = unidecode(subject_name).replace(" ", "_").lower()
+        self._subject_id = subject_id
         self._grades = grades or []
 
         self._attr_name = f"Edupage - {student_name} - {subject_name}"
@@ -217,10 +231,20 @@ class EduPageSubjectSensor(StateRestoringSensor):
         return self._unique_id
 
     @property
+    def _current_grades(self):
+        """Return live grades for this subject from the coordinator."""
+        all_grades = self.coordinator.data.get("grades", [])
+        if self._subject_id is None:
+            return self._grades
+        return [
+            g for g in all_grades if getattr(g, "subject_id", None) == self._subject_id
+        ]
+
+    @property
     def state(self):
         """Return the grade count, falling back to the last-known value."""
         if self._data_is_fresh():
-            return self._set_value(len(self._grades))
+            return self._set_value(len(self._current_grades))
         if self._last_value is not None:
             return self._last_value
         return 0
@@ -228,7 +252,8 @@ class EduPageSubjectSensor(StateRestoringSensor):
     @property
     def extra_state_attributes(self):
         """Return additional attributes."""
-        if not self._grades:
+        current_grades = self._current_grades
+        if not current_grades:
             attributes = {"info": "no grades yet"}
         else:
             attributes = {
@@ -236,7 +261,7 @@ class EduPageSubjectSensor(StateRestoringSensor):
                 "unique_id": self._unique_id,
             }
 
-            for i, grade in enumerate(self._grades):
+            for i, grade in enumerate(current_grades):
                 attributes[f"grade_{i+1}_title"] = grade.title
                 attributes[f"grade_{i+1}_grade_n"] = grade.grade_n
                 if grade.max_points:

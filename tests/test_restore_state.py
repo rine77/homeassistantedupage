@@ -23,7 +23,13 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from custom_components.homeassistantedupage.const import (
+    CONF_STUDENT_ID,
+    CONF_STUDENT_NAME,
+    DOMAIN,
+)
 from custom_components.homeassistantedupage.sensor import (
+    async_setup_entry,
     EduPageNotificationSensor,
     EduPageRingingSensor,
     EduPageSubjectSensor,
@@ -40,9 +46,10 @@ class _FakeState:
 
 
 class _Grade:
-    def __init__(self, grade_n, subject_name="Maths"):
+    def __init__(self, grade_n, subject_name="Maths", subject_id=1):
         self.grade_n = grade_n
         self.subject_name = subject_name
+        self.subject_id = subject_id
 
 
 class _Ringing:
@@ -72,8 +79,9 @@ def coord(hass: HomeAssistant):
     return c
 
 
-def _subject_sensor(coord):
-    return EduPageSubjectSensor(coord, 1, "Max Kov", "Maths", [])
+def _subject_sensor(coord, grades=None):
+    coord.data["grades"] = grades if grades is not None else []
+    return EduPageSubjectSensor(coord, 1, "Max Kov", "Maths", 1, grades or [])
 
 
 def _notification_sensor(coord):
@@ -137,13 +145,35 @@ async def test_restores_after_outage_with_tolerated_empty_data(hass, coord):
 async def test_fresh_value_replaces_restored_value(hass, coord):
     sensor = _subject_sensor(coord)
     sensor._apply_restored(_FakeState("5"))
-    # A successful update yields a different value.
+    # A successful update yields a different value (read live from coordinator).
     coord.data["grades"] = [_Grade(1), _Grade(2)]
-    sensor._grades = coord.data["grades"]
     assert sensor.state == 2
     # Now an outage: the restored value 5 must NOT come back; 2 is current.
     _outage(coord)
     assert sensor.state == 2
+
+
+async def test_later_successful_refresh_updates_subject_grades(hass, coord):
+    """The subject sensor must observe a later successful refresh that replaces
+    coordinator grade data with new grades (no private attribute touch)."""
+    sensor = _subject_sensor(coord, [_Grade(1, subject_id=1)])
+    _set_data_ok(coord, grades=True)
+    assert sensor.state == 1
+
+    # New grades arrive on a later successful poll, including another subject
+    # that this sensor must ignore.
+    coord.data["grades"] = [
+        _Grade(2, subject_name="Maths", subject_id=1),
+        _Grade(3, subject_name="Maths", subject_id=1),
+        _Grade(4, subject_name="English", subject_id=1),
+        _Grade(9, subject_name="Other", subject_id=99),
+    ]
+    _set_data_ok(coord, grades=True)
+    assert sensor.state == 3
+
+    # The per-subject attribute list also tracks the live data.
+    assert len(sensor._current_grades) == 3
+
 
 
 # ---------------------------------------------------------------------------
@@ -317,12 +347,13 @@ def _set_data_ok(coord, **sections):
 async def test_grade_section_failure_keeps_last_value(hass, coord):
     """When grades fail (#109) but the rest of the poll succeeds, the subject
     sensor must not treat its data as fresh or reset to 0."""
-    sensor = EduPageSubjectSensor(coord, 1, "Max Kov", "Maths", [_Grade(1), _Grade(2), _Grade(3)])
+    sensor = _subject_sensor(coord, [_Grade(1), _Grade(2), _Grade(3)])
     # A good poll: grades fresh -> count 3 is remembered.
     _set_data_ok(coord, grades=True)
     assert sensor.state == 3
-    # Next poll: grades fail -> data_ok['grades'] = False, last_update_success True.
-    sensor._grades = []
+    # Next poll: grades fail -> coordinator data is empty AND data_ok False,
+    # with last_update_success still True (partial failure).
+    coord.data["grades"] = []
     _set_data_ok(coord, grades=False)
     # Not fresh: keep the last-known 3, marked stale, not reset to 0.
     assert sensor.state == 3
@@ -365,3 +396,39 @@ async def test_full_outage_still_makes_everything_stale(hass, coord):
     _outage(coord)
     assert sensor.data_stale is True
     assert sensor.available is True  # last-known value of 0 retained
+
+
+async def test_setup_uses_stored_student_when_first_refresh_fails(hass, coord):
+    """When EduPage is unavailable at startup, sensor setup must fall back to the
+    stored student id/name from the config entry so sensor construction does not
+    crash with a None name (which would skip RestoreEntity attachment)."""
+    from homeassistant.config_entries import ConfigEntry
+
+    # First refresh produced no student data at all.
+    coord.data = {}
+    coord.last_update_success = False
+
+    entry = ConfigEntry(
+        version=1,
+        domain=DOMAIN,
+        title="Edupage (Max)",
+        data={
+            "username": "u",
+            "subdomain": "s",
+            "phpsessid": "p",
+            CONF_STUDENT_ID: 42,
+            CONF_STUDENT_NAME: "Max Kov",
+        },
+        source="user",
+        entry_id="entry-fallback",
+    )
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coord
+
+    added = []
+    await async_setup_entry(hass, entry, added.append)
+
+    assert added, "expected at least the notification sensor to be created"
+    # Construction succeeded (no unidecode(None)); the stored name survives.
+    notif = added[0]
+    assert notif._student_id == 42
+    assert notif._student_name == "max_kov"

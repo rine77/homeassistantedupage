@@ -281,6 +281,48 @@ class EduPageSubjectSensor(StateRestoringSensor):
                 teacher_name = grade.teacher.name if grade.teacher else "unknown"
                 attributes[f"grade_{i+1}_teacher"] = teacher_name
 
+            dated_grades = [
+                grade
+                for grade in current_grades
+                if getattr(grade, "date", None) is not None
+            ]
+            latest_grade = (
+                max(dated_grades, key=lambda grade: grade.date)
+                if dated_grades
+                else current_grades[-1]
+            )
+
+            attributes["latest_grade"] = latest_grade.grade_n
+            attributes["latest_grade_title"] = latest_grade.title
+
+            latest_date = getattr(latest_grade, "date", None)
+            if latest_date is not None:
+                attributes["latest_grade_date"] = latest_date.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
+            latest_teacher = getattr(latest_grade, "teacher", None)
+            latest_teacher_name = getattr(latest_teacher, "name", None)
+            if latest_teacher_name:
+                attributes["latest_grade_teacher"] = latest_teacher_name
+
+            optional_latest_attributes = {
+                "latest_grade_comment": getattr(latest_grade, "comment", None),
+                "latest_grade_percent": getattr(latest_grade, "percent", None),
+                "latest_grade_max_points": getattr(
+                    latest_grade, "max_points", None
+                ),
+                "latest_grade_class_avg_grade": getattr(
+                    latest_grade, "class_grade_avg", None
+                ),
+            }
+            attributes.update(
+                {
+                    key: value
+                    for key, value in optional_latest_attributes.items()
+                    if value is not None
+                }
+            )
         attributes["data_stale"] = self.data_stale
         return attributes
 

@@ -17,7 +17,11 @@ from custom_components.homeassistantedupage.sensor import (
     EduPageNotificationSensor,
 )
 from custom_components.homeassistantedupage import sensor as sensor_module
-
+from custom_components.homeassistantedupage.sensor import (
+    _MAX_EVENTS,
+    EduPageNotificationSensor,
+    EduPageSubjectSensor,
+)
 
 class _FakeEvent:
     """Minimal notification event with the fields the sensor reads."""
@@ -36,6 +40,31 @@ class _FakeSubject:
         self.subject_id = subject_id
         self.name = name
 
+class _FakeGrade:
+    """Minimal grade object with the fields used by the subject sensor."""
+
+    def __init__(
+            self,
+            grade_n,
+            title,
+            date,
+            *,
+            teacher=None,
+            comment=None,
+            percent=None,
+            max_points=None,
+            class_grade_avg=None,
+            subject_id=1,
+    ):
+        self.grade_n = grade_n
+        self.title = title
+        self.date = date
+        self.teacher = teacher
+        self.comment = comment
+        self.percent = percent
+        self.max_points = max_points
+        self.class_grade_avg = class_grade_avg
+        self.subject_id = subject_id
 
 @pytest.fixture
 def coordinator(hass: HomeAssistant):
@@ -143,3 +172,74 @@ async def test_flat_event_attributes_are_bounded(hass, coordinator):
     # Only the first _MAX_EVENTS events are emitted as flat attributes.
     assert attrs[f"event_{_MAX_EVENTS}_id"] == _MAX_EVENTS - 1
     assert f"event_{_MAX_EVENTS + 1}_id" not in attrs
+
+def test_latest_grade_uses_date_not_api_order(coordinator):
+    """The latest grade must be selected by date from an unsorted API result."""
+    older = _FakeGrade(
+        2,
+        "Older test",
+        datetime(2026, 8, 20, 8, 0),
+        teacher=_FakeSubject(10, "Mrs Older"),
+    )
+    latest = _FakeGrade(
+        1,
+        "Latest test",
+        datetime(2026, 9, 3, 10, 30),
+        teacher=_FakeSubject(11, "Mr Latest"),
+        comment="Excellent",
+        percent=95,
+        max_points=20,
+        class_grade_avg=2.4,
+    )
+    coordinator.data["grades"] = [latest, older]
+
+    sensor = EduPageSubjectSensor(
+        coordinator,
+        student_id=1,
+        student_name="Max Kovaľ",
+        subject_name="Maths",
+        subject_id=1,
+        grades=[],
+    )
+
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["latest_grade"] == 1
+    assert attrs["latest_grade_title"] == "Latest test"
+    assert attrs["latest_grade_date"] == "2026-09-03 10:30:00"
+    assert attrs["latest_grade_teacher"] == "Mr Latest"
+    assert attrs["latest_grade_comment"] == "Excellent"
+    assert attrs["latest_grade_percent"] == 95
+    assert attrs["latest_grade_max_points"] == 20
+    assert attrs["latest_grade_class_avg_grade"] == 2.4
+
+
+def test_latest_grade_omits_missing_optional_fields(coordinator):
+    """Optional latest-grade attributes are omitted when EduPage has no value."""
+    coordinator.data["grades"] = [
+        _FakeGrade(
+            3,
+            "Short test",
+            datetime(2026, 9, 2, 9, 0),
+        )
+    ]
+
+    sensor = EduPageSubjectSensor(
+        coordinator,
+        student_id=1,
+        student_name="Max Kovaľ",
+        subject_name="Maths",
+        subject_id=1,
+        grades=[],
+    )
+
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["latest_grade"] == 3
+    assert attrs["latest_grade_title"] == "Short test"
+    assert attrs["latest_grade_date"] == "2026-09-02 09:00:00"
+    assert "latest_grade_teacher" not in attrs
+    assert "latest_grade_comment" not in attrs
+    assert "latest_grade_percent" not in attrs
+    assert "latest_grade_max_points" not in attrs
+    assert "latest_grade_class_avg_grade" not in attrs

@@ -27,6 +27,7 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 - Modern app-code two-factor authentication
 - Interactive reauthentication when a stored session expires
 - English, German, and Slovak translations
+- Restoration of the last known sensor states after Home Assistant restarts or temporary EduPage outages
 
 ## Installation
 

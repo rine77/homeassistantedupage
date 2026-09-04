@@ -77,6 +77,11 @@ async def test_expired_session_during_setup_starts_reauth(hass: HomeAssistant):
 
 async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant):
     entry = _entry()
+    entry._async_set_state(
+        hass,
+        config_entries.ConfigEntryState.SETUP_IN_PROGRESS,
+        None,
+    )
     reauth = AsyncMock()
     entry.async_start_reauth = reauth
 

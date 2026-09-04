@@ -23,6 +23,10 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from inspect import signature
+
+from homeassistant import config_entries
+
 from custom_components.homeassistantedupage.const import (
     CONF_STUDENT_ID,
     CONF_STUDENT_NAME,
@@ -65,7 +69,32 @@ class _Ringing:
 @pytest.fixture
 def coord(hass: HomeAssistant):
     """A coordinator whose data and freshness we control directly."""
-    c = DataUpdateCoordinator(hass, logging.getLogger("test"), name="test")
+    entry_kwargs = {
+        "version": 1,
+        "minor_version": 1,
+        "domain": DOMAIN,
+        "title": "EduPage test entry",
+        "data": {
+            CONF_STUDENT_ID: 1,
+            CONF_STUDENT_NAME: "Max",
+        },
+        "source": "user",
+        "entry_id": "restore-state-test-entry",
+        "unique_id": "restore-state-test-unique",
+        "discovery_keys": set(),
+        "options": {},
+    }
+    if "subentries_data" in signature(config_entries.ConfigEntry).parameters:
+        entry_kwargs["subentries_data"] = {}
+
+    entry = config_entries.ConfigEntry(**entry_kwargs)
+
+    c = DataUpdateCoordinator(
+        hass,
+        logging.getLogger("test"),
+        name="test",
+        config_entry=entry,
+    )
     c.data = {
         "student": {"id": 1, "name": "Max"},
         "subjects": [],
@@ -438,6 +467,11 @@ async def test_setup_uses_stored_student_when_first_refresh_fails(hass, coord):
         entry_id="entry-fallback",
         unique_id="unique-fallback",
         discovery_keys=set(),
+        **(
+            {"subentries_data": {}}
+            if "subentries_data" in signature(ConfigEntry).parameters
+            else {}
+        ),
         options={},
     )
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coord

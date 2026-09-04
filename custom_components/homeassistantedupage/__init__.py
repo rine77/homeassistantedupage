@@ -269,6 +269,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name="Edupage",
         update_method=fetch_data,
         update_interval=timedelta(minutes=30),
+        config_entry=entry,
     )
     coordinator.edupage = edupage
     coordinator.fetch_lock = fetch_lock

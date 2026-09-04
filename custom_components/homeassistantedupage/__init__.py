@@ -27,6 +27,147 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     _LOGGER.debug("INIT called async_setup")
     return True
 
+
+async def _collect_data(edupage, student, student_name):
+    """Gather all EduPage data sections for a student.
+
+    Each optional data source is fetched independently. A failure in one
+    source (e.g. a ``get_grades()`` crash) must not discard the rest of the
+    data; the failed section falls back to an empty list so timetable,
+    calendar, meals and substitution data are still returned.
+    """
+    try:
+        grades = await edupage.get_grades()
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.warning("get_grades failed: %s", e)
+        grades = []
+
+    try:
+        subjects = await edupage.get_subjects()
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.warning("get_subjects failed: %s", e)
+        subjects = []
+
+    try:
+        notifications = await edupage.get_notifications()
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.warning("get_notifications failed: %s", e)
+        notifications = []
+
+    today = datetime.now().date()
+
+    timetable_data = {}
+    timetable_data_canceled = {}
+    for offset in range(14):
+        current_date = today + timedelta(days=offset)
+        try:
+            timetable = await edupage.get_timetable(
+                student, current_date
+            )
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error(
+                "Failed to fetch timetable data for %s: %s",
+                current_date,
+                e,
+            )
+            break
+        lessons_to_add = []
+        canceled_lessons = []
+        if timetable is not None:
+            for lesson in timetable:
+                if not lesson.is_cancelled:
+                    lessons_to_add.append(lesson)
+                else:
+                    canceled_lessons.append(lesson)
+        if lessons_to_add:
+            timetable_data[current_date] = lessons_to_add
+        if canceled_lessons:
+            timetable_data_canceled[current_date] = canceled_lessons
+
+    canteen_menu_data = {}
+    for offset in range(14):
+        current_date = today + timedelta(days=offset)
+        try:
+            meals = await edupage.get_meals(current_date)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.warning(
+                "Failed to fetch meals data for %s: %s",
+                current_date,
+                e,
+            )
+            continue
+        meals_to_add = []
+        if meals is not None:
+            for meal in (meals.snack, meals.lunch, meals.afternoon_snack):
+                if meal is not None and meal.menus:
+                    meals_to_add.append(meal)
+        if meals_to_add:
+            canteen_menu_data[current_date] = meals_to_add
+
+    # Substitution / ringing extras for sensors.
+    try:
+        timetable_changes = await edupage.get_timetable_changes(today)
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.warning(
+            "get_timetable_changes failed for %s: %s", today, e
+        )
+        timetable_changes = []
+
+    try:
+        missing_teachers = await edupage.get_missing_teachers(today)
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.warning(
+            "get_missing_teachers failed for %s: %s", today, e
+        )
+        missing_teachers = []
+
+    try:
+        next_ringing = await edupage.get_next_ringing_time(
+            datetime.now()
+        )
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.warning("get_next_ringing_time failed: %s", e)
+        next_ringing = None
+
+    # Per-term grades for grade-average sensors.
+    school_year = None
+    grades_per_term = {}
+    try:
+        school_year = await edupage.get_school_year()
+        term_map = {"first": Term.FIRST, "second": Term.SECOND}
+        for term_key, term_enum in term_map.items():
+            try:
+                grades_per_term[
+                    term_key
+                ] = await edupage.get_grades_for_term(
+                    school_year, term_enum
+                )
+            except Exception as e:  # noqa: BLE001
+                _LOGGER.warning(
+                    "get_grades_for_term(%s) failed: %s", term_key, e
+                )
+                grades_per_term[term_key] = []
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.warning("get_school_year failed: %s", e)
+        school_year = None
+
+    return {
+        "student": {"id": student.person_id, "name": student_name},
+        "grades": grades,
+        "subjects": subjects,
+        "timetable": timetable_data,
+        "canteen_menu": canteen_menu_data,
+        "cancelled_lessons": timetable_data_canceled,
+        "notifications": notifications,
+        "timetable_changes": timetable_changes,
+        "missing_teachers": missing_teachers,
+        "next_ringing": next_ringing,
+        "school_year": school_year,
+        "grades_per_term": grades_per_term,
+        "last_updated": datetime.now().isoformat(),
+    }
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up EduPage integration and validate the stored session."""
     if DOMAIN not in hass.data:
@@ -75,123 +216,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     return {"timetable": {}}
 
                 student_name = student.name or stored_student_name or str(student.person_id)
-                grades = await edupage.get_grades()
-                subjects = await edupage.get_subjects()
-                notifications = await edupage.get_notifications()
 
-                today = datetime.now().date()
-
-                timetable_data = {}
-                timetable_data_canceled = {}
-                for offset in range(14):
-                    current_date = today + timedelta(days=offset)
-                    try:
-                        timetable = await edupage.get_timetable(
-                            student, current_date
-                        )
-                    except Exception as e:  # noqa: BLE001
-                        _LOGGER.error(
-                            "Failed to fetch timetable data for %s: %s",
-                            current_date,
-                            e,
-                        )
-                        break
-                    lessons_to_add = []
-                    canceled_lessons = []
-                    if timetable is not None:
-                        for lesson in timetable:
-                            if not lesson.is_cancelled:
-                                lessons_to_add.append(lesson)
-                            else:
-                                canceled_lessons.append(lesson)
-                    if lessons_to_add:
-                        timetable_data[current_date] = lessons_to_add
-                    if canceled_lessons:
-                        timetable_data_canceled[current_date] = canceled_lessons
-
-                canteen_menu_data = {}
-                for offset in range(14):
-                    current_date = today + timedelta(days=offset)
-                    try:
-                        meals = await edupage.get_meals(current_date)
-                    except Exception as e:  # noqa: BLE001
-                        _LOGGER.warning(
-                            "Failed to fetch meals data for %s: %s",
-                            current_date,
-                            e,
-                        )
-                        continue
-                    meals_to_add = []
-                    if meals is not None:
-                        for meal in (meals.snack, meals.lunch, meals.afternoon_snack):
-                            if meal is not None and meal.menus:
-                                meals_to_add.append(meal)
-                    if meals_to_add:
-                        canteen_menu_data[current_date] = meals_to_add
-
-                # Substitution / ringing extras for sensors.
-                try:
-                    timetable_changes = await edupage.get_timetable_changes(today)
-                except Exception as e:  # noqa: BLE001
-                    _LOGGER.warning(
-                        "get_timetable_changes failed for %s: %s", today, e
-                    )
-                    timetable_changes = []
-
-                try:
-                    missing_teachers = await edupage.get_missing_teachers(today)
-                except Exception as e:  # noqa: BLE001
-                    _LOGGER.warning(
-                        "get_missing_teachers failed for %s: %s", today, e
-                    )
-                    missing_teachers = []
-
-                try:
-                    next_ringing = await edupage.get_next_ringing_time(
-                        datetime.now()
-                    )
-                except Exception as e:  # noqa: BLE001
-                    _LOGGER.warning("get_next_ringing_time failed: %s", e)
-                    next_ringing = None
-
-                # Per-term grades for grade-average sensors.
-                school_year = None
-                grades_per_term = {}
-                try:
-                    school_year = await edupage.get_school_year()
-                    term_map = {"first": Term.FIRST, "second": Term.SECOND}
-                    for term_key, term_enum in term_map.items():
-                        try:
-                            grades_per_term[
-                                term_key
-                            ] = await edupage.get_grades_for_term(
-                                school_year, term_enum
-                            )
-                        except Exception as e:  # noqa: BLE001
-                            _LOGGER.warning(
-                                "get_grades_for_term(%s) failed: %s", term_key, e
-                            )
-                            grades_per_term[term_key] = []
-                except Exception as e:  # noqa: BLE001
-                    _LOGGER.warning("get_school_year failed: %s", e)
-                    school_year = None
-
-                return_data = {
-                    "student": {"id": student.person_id, "name": student_name},
-                    "grades": grades,
-                    "subjects": subjects,
-                    "timetable": timetable_data,
-                    "canteen_menu": canteen_menu_data,
-                    "cancelled_lessons": timetable_data_canceled,
-                    "notifications": notifications,
-                    "timetable_changes": timetable_changes,
-                    "missing_teachers": missing_teachers,
-                    "next_ringing": next_ringing,
-                    "school_year": school_year,
-                    "grades_per_term": grades_per_term,
-                    "last_updated": datetime.now().isoformat(),
-                }
-                return return_data
+                return await _collect_data(edupage, student, student_name)
 
             except EdupageSessionExpired as e:
                 _LOGGER.error("INIT session expired during update: %s", e)

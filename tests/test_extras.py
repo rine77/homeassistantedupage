@@ -9,7 +9,7 @@ the pytest-homeassistant-custom-component ``hass`` fixture.
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -19,6 +19,7 @@ from custom_components.homeassistantedupage.homeassistant_edupage import (
     UpdateFailed,
 )
 from custom_components.homeassistantedupage.sensor import _average, _grade_numeric
+from custom_components.homeassistantedupage import _collect_data
 
 
 class _FakeHass:
@@ -219,3 +220,85 @@ async def test_always_creates_canteen_calendar(hass: HomeAssistant):
     names = {type(e).__name__ for e in added}
     assert "EdupageCalendar" in names
     assert "EdupageCanteenCalendar" in names
+
+
+# ---------------------------------------------------------------------------
+# Coordinator-level: _collect_data fallback for failing data sections (#94/#93)
+# ---------------------------------------------------------------------------
+
+
+class _OkStudent:
+    """Minimal student object used by _collect_data."""
+
+    person_id = 1
+    name = "Max"
+
+
+def _edupage_with_grades_failing():
+    """An edupage whose get_grades() raises but everything else succeeds."""
+    edupage = MagicMock()
+    edupage.get_grades = AsyncMock(side_effect=RuntimeError("non-numeric grade"))
+    edupage.get_subjects = AsyncMock(return_value=["Math"])
+    edupage.get_notifications = AsyncMock(return_value=[{"id": 1}])
+    edupage.get_timetable = AsyncMock(return_value=[])
+    edupage.get_meals = AsyncMock(return_value=None)
+    edupage.get_timetable_changes = AsyncMock(return_value=[])
+    edupage.get_missing_teachers = AsyncMock(return_value=[])
+    edupage.get_next_ringing_time = AsyncMock(return_value=None)
+    edupage.get_school_year = AsyncMock(return_value=None)
+    edupage.get_grades_for_term = AsyncMock(return_value=[])
+    return edupage
+
+
+async def test_collect_data_continues_when_get_grades_fails():
+    """A get_grades() crash must not discard student/timetable/subjects data."""
+    edupage = _edupage_with_grades_failing()
+    student = _OkStudent()
+
+    data = await _collect_data(edupage, student, "Max")
+
+    assert data["grades"] == []
+    assert data["student"] == {"id": 1, "name": "Max"}
+    assert data["subjects"] == ["Math"]
+    assert data["notifications"] == [{"id": 1}]
+    assert "timetable" in data
+    assert "canteen_menu" in data
+
+
+async def test_collect_data_continues_when_get_subjects_fails():
+    edupage = _edupage_with_grades_failing()
+    edupage.get_grades = AsyncMock(return_value=[])
+    edupage.get_subjects = AsyncMock(side_effect=IndexError("empty subjects"))
+
+    data = await _collect_data(edupage, _OkStudent(), "Max")
+
+    assert data["subjects"] == []
+    assert data["grades"] == []
+
+
+async def test_collect_data_continues_when_get_notifications_fails():
+    edupage = _edupage_with_grades_failing()
+    edupage.get_grades = AsyncMock(return_value=[])
+    edupage.get_subjects = AsyncMock(return_value=[])
+    edupage.get_notifications = AsyncMock(
+        side_effect=AttributeError("missing field")
+    )
+
+    data = await _collect_data(edupage, _OkStudent(), "Max")
+
+    assert data["notifications"] == []
+    assert data["student"]["name"] == "Max"
+
+
+async def test_collect_data_preserves_student_when_only_grades_fail():
+    """The reported #94 case: grades crash, everything else still loads."""
+    edupage = _edupage_with_grades_failing()
+    edupage.get_timetable = AsyncMock(return_value=[])
+    edupage.get_meals = AsyncMock(return_value=None)
+
+    data = await _collect_data(edupage, _OkStudent(), "Max")
+
+    assert data["student"] == {"id": 1, "name": "Max"}
+    assert data["grades"] == []
+    assert isinstance(data["timetable"], dict)
+    assert isinstance(data["canteen_menu"], dict)

@@ -88,21 +88,34 @@ async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant)
             raise EdupageSessionExpired("expired during refresh")
         return None
 
-    with patch.object(Edupage, "login", new=flaky_login), patch.object(
+    login_p = patch.object(Edupage, "login", new=flaky_login)
+    students_p = patch.object(
         Edupage,
         "get_students",
         new=AsyncMock(return_value=[_student()]),
-    ), patch.object(
+    )
+    fwd_p = patch.object(
         hass.config_entries,
         "async_forward_entry_setups",
         new=AsyncMock(return_value=None),
-    ):
+    )
+    login_p.start()
+    students_p.start()
+    fwd_p.start()
+    coordinator = None
+    try:
         result = await async_setup_entry(hass, entry)
 
-    assert result is True
-    reauth.assert_not_awaited()
+        assert result is True
+        reauth.assert_not_awaited()
 
-    coordinator = hass.data[DOMAIN][entry.entry_id]
-    await coordinator.async_request_refresh()
+        coordinator = hass.data[DOMAIN][entry.entry_id]
+        await coordinator.async_request_refresh()
 
-    reauth.assert_awaited_once()
+        reauth.assert_awaited_once()
+    finally:
+        if coordinator is not None:
+            coordinator.async_shutdown()
+        fwd_p.stop()
+        students_p.stop()
+        login_p.stop()

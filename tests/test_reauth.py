@@ -84,7 +84,7 @@ async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant)
 
     async def flaky_login(self, username, subdomain, sessionid):
         login_calls["n"] += 1
-        if login_calls["n"] > 1:
+        if login_calls["n"] > 2:
             raise EdupageSessionExpired("expired during refresh")
         return None
 

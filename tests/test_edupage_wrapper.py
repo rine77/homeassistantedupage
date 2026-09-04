@@ -12,7 +12,7 @@ homeassistantedupage#70 / #95:
 from unittest.mock import MagicMock, patch
 
 import pytest
-
+from homeassistant.helpers.update_coordinator import UpdateFailed
 from custom_components.homeassistantedupage.homeassistant_edupage import (
     Edupage,
     EdupageSessionExpired,
@@ -71,3 +71,33 @@ async def test_login_returns_true_on_valid_session():
     ):
         result = await _wrapper(api).login("user", "mshviezdoslavova1", "sess")
     assert result is True
+
+async def test_get_meals_returns_none_on_index_error():
+    """Empty meal data represented by IndexError is treated as unavailable."""
+    api = MagicMock()
+    api.get_meals.side_effect = IndexError("list index out of range")
+
+    result = await _wrapper(api).get_meals("2026-09-04")
+
+    assert result is None
+
+
+async def test_get_meals_returns_none_on_attribute_error():
+    """Unsupported meal data represented by AttributeError is treated as unavailable."""
+    api = MagicMock()
+    api.get_meals.side_effect = AttributeError(
+        "'list' object has no attribute 'keys'"
+    )
+
+    result = await _wrapper(api).get_meals("2026-09-04")
+
+    assert result is None
+
+
+async def test_get_meals_raises_update_failed_on_unexpected_error():
+    """Unexpected meal API failures remain visible to the coordinator."""
+    api = MagicMock()
+    api.get_meals.side_effect = RuntimeError("connection failed")
+
+    with pytest.raises(UpdateFailed, match="connection failed"):
+        await _wrapper(api).get_meals("2026-09-04")

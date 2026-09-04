@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from inspect import signature
 from homeassistant import config_entries, data_entry_flow
 from homeassistant.core import HomeAssistant
 
@@ -82,6 +83,11 @@ async def config_entry(hass):
         entry_id="test_entry",
         unique_id="test_unique_id",
         discovery_keys=set(),
+        **(
+            {"subentries_data": {}}
+            if "subentries_data" in signature(config_entries.ConfigEntry).parameters
+            else {}
+        ),
         options={},
     )
     hass.data.setdefault(DOMAIN, {})

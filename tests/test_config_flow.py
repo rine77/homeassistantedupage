@@ -5,6 +5,8 @@ mocked so no live network or credentials are required.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
+from custom_components.homeassistantedupage import _async_update_listener
 
 import pytest
 
@@ -17,6 +19,7 @@ from custom_components.homeassistantedupage.const import (
     CONF_STUDENT_ID,
     CONF_STUDENT_NAME,
     CONF_SUBDOMAIN,
+    CONF_SUBJECT_IDS,
     DOMAIN,
 )
 
@@ -225,3 +228,83 @@ async def test_reconfigure_uses_reload(hass: HomeAssistant, config_entry):
 
     assert result["type"] is data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "reconfigured"
+
+async def test_options_flow_defaults_to_all_available_subjects(
+        hass: HomeAssistant,
+        config_entry,
+):
+    """Existing entries default to all currently available subjects."""
+    maths = SimpleNamespace(subject_id=1, name="Mathematics")
+    english = SimpleNamespace(subject_id=2, name="English")
+    coordinator = MagicMock()
+    coordinator.data = {"subjects": [maths, english]}
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+
+    result = await hass.config_entries.options.async_init(
+        config_entry.entry_id
+    )
+
+    assert result["type"] is data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    validated = result["data_schema"]({})
+    assert set(validated[CONF_SUBJECT_IDS]) == {"1", "2"}
+
+
+async def test_options_flow_stores_selected_subjects(
+        hass: HomeAssistant,
+        config_entry,
+):
+    """The selected subject IDs are stored in the config entry options."""
+    maths = SimpleNamespace(subject_id=1, name="Mathematics")
+    english = SimpleNamespace(subject_id=2, name="English")
+    coordinator = MagicMock()
+    coordinator.data = {"subjects": [maths, english]}
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+
+    result = await hass.config_entries.options.async_init(
+        config_entry.entry_id
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_SUBJECT_IDS: ["2"]},
+    )
+
+    assert result["type"] is data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert config_entry.options == {CONF_SUBJECT_IDS: ["2"]}
+
+
+async def test_options_flow_allows_empty_selection(
+        hass: HomeAssistant,
+        config_entry,
+):
+    """Users may disable all per-subject grade sensors."""
+    maths = SimpleNamespace(subject_id=1, name="Mathematics")
+    coordinator = MagicMock()
+    coordinator.data = {"subjects": [maths]}
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+
+    result = await hass.config_entries.options.async_init(
+        config_entry.entry_id
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_SUBJECT_IDS: []},
+    )
+
+    assert result["type"] is data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert config_entry.options == {CONF_SUBJECT_IDS: []}
+
+async def test_options_update_listener_reloads_entry(
+        hass: HomeAssistant,
+        config_entry,
+):
+    """Changing options reloads the config entry."""
+    with patch.object(
+            hass.config_entries,
+            "async_reload",
+            new=AsyncMock(return_value=True),
+    ) as reload_mock:
+        await _async_update_listener(hass, config_entry)
+
+    reload_mock.assert_awaited_once_with(config_entry.entry_id)

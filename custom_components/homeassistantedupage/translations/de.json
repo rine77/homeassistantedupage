@@ -53,5 +53,16 @@
       "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}",
       "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Fächer auswählen",
+        "description": "Wählen Sie die Fächer aus, für die Notensensoren erstellt werden sollen. Andere EduPage-Sensoren sind davon nicht betroffen.",
+        "data": {
+          "subject_ids": "Fächer"
+        }
+      }
+    }
   }
 }

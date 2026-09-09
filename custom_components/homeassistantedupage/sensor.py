@@ -10,7 +10,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
+from .const import (
+    CONF_STUDENT_ID,
+    CONF_STUDENT_NAME,
+    CONF_SUBJECT_IDS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
 
@@ -142,6 +147,20 @@ async def async_setup_entry(
     )
 
     subjects = coordinator.data.get("subjects", [])
+    selected_subject_ids = entry.options.get(CONF_SUBJECT_IDS)
+
+    # Entries without this option predate subject selection and retain the
+    # previous behavior. An explicitly stored empty list disables all
+    # individual subject sensors.
+    if selected_subject_ids is not None:
+        selected_subject_ids = {
+            str(subject_id) for subject_id in selected_subject_ids
+        }
+        subjects = [
+            subject
+            for subject in subjects
+            if str(subject.subject_id) in selected_subject_ids
+        ]
     grades = coordinator.data.get("grades", [])
     notifications = coordinator.data.get("notifications", [])
     grades_by_subject = group_grades_by_subject(grades)

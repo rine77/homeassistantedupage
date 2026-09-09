@@ -15,7 +15,7 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 
 - Lesson calendar with upcoming and cancelled lessons
 - Canteen calendar for snacks, lunches, and afternoon snacks
-- One grade sensor for each subject
+- Configurable per-subject grade sensors
 - Notification sensor covering all available EduPage event types
 - Structured, bounded notification data for dashboards and automations
 - Sensors for timetable changes and missing teachers
@@ -93,7 +93,9 @@ The exact entity IDs are assigned by Home Assistant and may differ from the exam
 | First-term average sensor | Numeric grade average | Grade count and per-subject averages |
 | Second-term average sensor | Numeric grade average | Grade count and per-subject averages |
 
-Seeing many entities after setup is expected. EduPage exposes subjects separately, so the integration creates one grade sensor for every subject returned by the school. Some schools may also expose class-like entries as subjects.
+Seeing many entities after setup can be expected because EduPage may return every subject offered by the school, including subjects not taken by the selected student and class-like entries. Open **Settings → Devices & services → EduPage → Configure** to select the subjects for which grade sensors should be created. Other EduPage entities are not affected by this selection.
+
+Existing installations continue to expose all returned subjects until a selection is explicitly saved. Selecting no subjects disables all per-subject grade sensors.
 
 ## Calendars
 
@@ -140,7 +142,7 @@ A missing or empty menu therefore results in an empty calendar rather than the e
 
 ## Grade sensors
 
-The integration creates a sensor for every subject. Its state is the number of imported grades for that subject. Grade details are exposed as numbered attributes, for example:
+By default, the integration creates a sensor for every subject returned by EduPage. The subject selection described above can be used to limit these sensors. Each sensor's state is the number of imported grades for that subject. Grade details are exposed as numbered attributes, for example:
 
 ```yaml
 student:

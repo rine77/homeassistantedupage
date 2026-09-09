@@ -53,5 +53,16 @@
       "reconfigure_failed": "Opätovné overenie zlyhalo: {error}",
       "reauth_unsuccessful": "Opätovné overenie sa nepodarilo: {error}"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vybrať predmety",
+        "description": "Vyberte predmety, pre ktoré sa majú vytvoriť senzory známok. Ostatné senzory EduPage tým nie sú ovplyvnené.",
+        "data": {
+          "subject_ids": "Predmety"
+        }
+      }
+    }
   }
 }

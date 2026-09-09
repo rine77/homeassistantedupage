@@ -54,5 +54,16 @@
       "reauth_unsuccessful": "Re-authentication unsuccessful: {error}",
       "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Select subjects",
+        "description": "Select the subjects for which grade sensors should be created. Other EduPage sensors are not affected.",
+        "data": {
+          "subject_ids": "Subjects"
+        }
+      }
+    }
   }
 }

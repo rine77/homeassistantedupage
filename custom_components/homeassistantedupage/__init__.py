@@ -199,6 +199,13 @@ async def _collect_data(edupage, student, student_name):
         "last_updated": datetime.now().isoformat(),
     }
 
+async def _async_update_listener(
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+) -> None:
+    """Reload the config entry when its options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up EduPage integration and validate the stored session."""
@@ -289,8 +296,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await _setup_services(hass)
 
-    return True
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
+    return True
 
 # ---------------------------------------------------------------------------
 # Services

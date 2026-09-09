@@ -11,6 +11,7 @@ from edupage_api.exceptions import (
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_PHPSESSID,
@@ -18,6 +19,7 @@ from .const import (
     CONF_STUDENT_NAME,
     CONF_SUBDOMAIN,
     CONF_TWO_FACTOR_CODE,
+    CONF_SUBJECT_IDS,
     DOMAIN,
 )
 from .twofactor import start_two_factor
@@ -29,6 +31,14 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Edupage (with optional TOTP 2FA)."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        _config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        """Return the options flow handler."""
+        return EdupageOptionsFlow()
 
     def __init__(self) -> None:
         """Initialise the flow."""
@@ -407,3 +417,63 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if entry.entry_id == self.context.get("entry_id"):
                 return entry
         return None
+
+
+class EdupageOptionsFlow(config_entries.OptionsFlow):
+    """Handle EduPage integration options."""
+
+    async def async_step_init(self, user_input=None):
+        """Select subjects for which grade sensors are created."""
+        coordinator = self.hass.data.get(DOMAIN, {}).get(
+            self.config_entry.entry_id
+        )
+        subjects = (
+            coordinator.data.get("subjects", [])
+            if coordinator is not None and coordinator.data
+            else []
+        )
+
+        subject_options = [
+            {
+                "value": str(subject.subject_id),
+                "label": subject.name,
+            }
+            for subject in sorted(
+                subjects,
+                key=lambda subject: subject.name.casefold(),
+            )
+        ]
+
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        available_subject_ids = [
+            option["value"] for option in subject_options
+        ]
+        selected_subject_ids = self.config_entry.options.get(
+            CONF_SUBJECT_IDS,
+            available_subject_ids,
+        )
+        selected_subject_ids = [
+            str(subject_id)
+            for subject_id in selected_subject_ids
+            if str(subject_id) in available_subject_ids
+        ]
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SUBJECT_IDS,
+                        default=selected_subject_ids,
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=subject_options,
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
+        )

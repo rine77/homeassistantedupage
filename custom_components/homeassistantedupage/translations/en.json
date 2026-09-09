@@ -53,5 +53,16 @@
       "reconfigure_failed": "Re-authentication failed: {error}",
       "reauth_unsuccessful": "Re-authentication unsuccessful: {error}"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Select subjects",
+        "description": "Select the subjects for which grade sensors should be created. Other EduPage sensors are not affected.",
+        "data": {
+          "subject_ids": "Subjects"
+        }
+      }
+    }
   }
 }

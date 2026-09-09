@@ -1,4 +1,5 @@
 import logging
+import json
 from collections import defaultdict
 from datetime import datetime
 
@@ -16,7 +17,7 @@ _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
 # Bound on the number of events exposed in the "events" state attribute, to
 # keep stored state attributes from growing without limit over time.
 _MAX_EVENTS = 50
-
+_MAX_STATE_ATTRIBUTES_BYTES = 14 * 1024
 
 def _section_fresh(coordinator, key):
     """True when a specific data section was successfully refreshed.
@@ -380,54 +381,80 @@ class EduPageNotificationSensor(StateRestoringSensor):
             type_counts[event_type] += 1
         attributes["type_counts"] = dict(type_counts)
 
-        # Structured, aggregated list of recent events — convenient for templates
-        # and dashboards (e.g. `state_attr(..., 'events')`). Capped to keep
-        # stored state attributes bounded over time.
+        # Expose as many recent events as safely fit below Home Assistant's
+        # recorder attribute-size limit. Each event is provided in both the
+        # structured and legacy flat formats for backward compatibility.
         events = []
+
         for event in notifications[:_MAX_EVENTS]:
             item = {
                 "id": event.event_id,
-                "type": getattr(event.event_type, "value", None) or str(event.event_type),
+                "type": (
+                        getattr(event.event_type, "value", None)
+                        or str(event.event_type)
+                ),
                 "text": event.text,
                 "timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             }
+
             if event.additional_data:
                 if "date" in event.additional_data:
                     item["deadline"] = event.additional_data["date"]
                 if "predmetid" in event.additional_data:
-                    subject_id = event.additional_data["predmetid"]
-                    item["subject"] = self._subject_name_by_id(subject_id)
+                    item["subject"] = self._subject_name_by_id(
+                        event.additional_data["predmetid"]
+                    )
+
             if event.author:
                 item["author"] = (
-                    event.author.name if hasattr(event.author, "name") else event.author
+                    event.author.name
+                    if hasattr(event.author, "name")
+                    else event.author
                 )
+
+            event_number = len(events) + 1
+            flat_attributes = {
+                f"event_{event_number}_id": item["id"],
+                f"event_{event_number}_type": item["type"],
+                f"event_{event_number}_text": item["text"],
+                f"event_{event_number}_timestamp": item["timestamp"],
+            }
+
+            for optional_key in ("deadline", "subject", "author"):
+                if optional_key in item:
+                    flat_attributes[
+                        f"event_{event_number}_{optional_key}"
+                    ] = item[optional_key]
+
+            candidate_events = [*events, item]
+            candidate_attributes = {
+                **attributes,
+                **flat_attributes,
+                "events": candidate_events,
+                "events_exposed": len(candidate_events),
+                "events_truncated": (
+                        len(candidate_events) < len(notifications)
+                ),
+            }
+
+            serialized_size = len(
+                json.dumps(
+                    candidate_attributes,
+                    ensure_ascii=False,
+                    default=str,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            )
+
+            if serialized_size > _MAX_STATE_ATTRIBUTES_BYTES:
+                break
+
             events.append(item)
+            attributes.update(flat_attributes)
+
         attributes["events"] = events
-
-        # Flat per-event attributes are kept for backwards compatibility but
-        # must also be bounded to avoid unbounded state-attribute growth.
-        for i, event in enumerate(notifications[:_MAX_EVENTS]):
-            attributes[f"event_{i+1}_id"] = event.event_id
-            attributes[f"event_{i+1}_type"] = (
-                getattr(event.event_type, "value", None) or str(event.event_type)
-            )
-            attributes[f"event_{i+1}_text"] = event.text
-            attributes[f"event_{i+1}_timestamp"] = event.timestamp.strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-            if event.additional_data:
-                if "date" in event.additional_data:
-                    attributes[f"event_{i+1}_deadline"] = event.additional_data["date"]
-                if "predmetid" in event.additional_data:
-                    subject_id = event.additional_data["predmetid"]
-                    subject_name = self._subject_name_by_id(subject_id)
-                    attributes[f"event_{i+1}_subject"] = subject_name
-            if event.author:
-                author_name = (
-                    event.author.name if hasattr(event.author, "name") else event.author
-                )
-                attributes[f"event_{i+1}_author"] = author_name
-
+        attributes["events_exposed"] = len(events)
+        attributes["events_truncated"] = len(events) < len(notifications)
         attributes["data_stale"] = self.data_stale
         return attributes
 

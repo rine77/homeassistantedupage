@@ -190,7 +190,7 @@ If no numeric grades are available, the sensor reports an unknown value.
 
 ## Notifications
 
-The notification sensor counts all notification types returned by EduPage. Its `events` attribute contains a structured list of up to 50 recent events. Each item may include:
+The notification sensor counts all notification types returned by EduPage. Its `events` attribute contains the newest events that safely fit within Home Assistant's recorder attribute-size limit, with an additional hard limit of 50 events.
 
 ```yaml
 id: 123456
@@ -202,7 +202,11 @@ subject: Mathematics
 author: Example Teacher
 ```
 
-The `type_counts` attribute contains the number of events grouped by type. For backward compatibility, the integration also exposes flat attributes such as `event_1_text`, `event_1_deadline`, and `event_1_subject`. These are also limited to 50 events to prevent unbounded recorder growth.
+The `type_counts` attribute contains the number of events grouped by type.
+
+The `event_count` attribute always contains the total number of notifications returned by EduPage. `events_exposed` reports how many event details are included in the sensor attributes, while `events_truncated` indicates that additional events were omitted to remain below Home Assistant's recorder limit.
+
+For backward compatibility, the integration also exposes the same included events as flat attributes such as `event_1_text`, `event_1_deadline`, and `event_1_subject`. The structured and flat representations are reduced together so they always refer to the same set of events.
 
 Example Markdown card:
 

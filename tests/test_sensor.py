@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 
 import pytest
+import json
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -239,3 +240,88 @@ def test_latest_grade_omits_missing_optional_fields(coordinator):
     assert "latest_grade_percent" not in attrs
     assert "latest_grade_max_points" not in attrs
     assert "latest_grade_class_avg_grade" not in attrs
+
+def test_notification_attributes_stay_below_recorder_limit(coordinator):
+    """Long notifications must not exceed Home Assistant's recorder limit."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(
+            event_id=i,
+            event_type="homework",
+            text=f"Notification {i}: " + ("x" * 2000),
+            timestamp=datetime(2026, 9, 9, 8, 0),
+        )
+        for i in range(_MAX_EVENTS)
+    ]
+
+    attrs = sensor.extra_state_attributes
+    serialized_size = len(
+        json.dumps(
+            attrs,
+            ensure_ascii=False,
+            default=str,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+
+    assert serialized_size < 16384
+    assert attrs["event_count"] == _MAX_EVENTS
+    assert 0 < attrs["events_exposed"] < _MAX_EVENTS
+    assert attrs["events_truncated"] is True
+    assert len(attrs["events"]) == attrs["events_exposed"]
+
+    exposed = attrs["events_exposed"]
+    assert f"event_{exposed}_id" in attrs
+    assert f"event_{exposed + 1}_id" not in attrs
+
+
+def test_small_notification_list_is_not_truncated(coordinator):
+    """Small notification lists must still expose every event."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(
+            event_id=i,
+            event_type="homework",
+            text=f"Notification {i}",
+            timestamp=datetime(2026, 9, 9, 8, i),
+        )
+        for i in range(3)
+    ]
+
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["event_count"] == 3
+    assert attrs["events_exposed"] == 3
+    assert attrs["events_truncated"] is False
+    assert len(attrs["events"]) == 3
+    assert attrs["event_3_id"] == 2
+    assert "event_4_id" not in attrs
+
+def test_single_oversized_notification_is_omitted(coordinator):
+    """One oversized event must not break recorder attribute storage."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(
+            event_id=1,
+            event_type="message",
+            text="x" * 20000,
+            timestamp=datetime(2026, 9, 9, 8, 0),
+        )
+    ]
+
+    attrs = sensor.extra_state_attributes
+    serialized_size = len(
+        json.dumps(
+            attrs,
+            ensure_ascii=False,
+            default=str,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+
+    assert serialized_size < 16384
+    assert attrs["event_count"] == 1
+    assert attrs["events_exposed"] == 0
+    assert attrs["events_truncated"] is True
+    assert attrs["events"] == []
+    assert "event_1_id" not in attrs

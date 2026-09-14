@@ -65,5 +65,15 @@
         }
       }
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_grade": "A new grade was received",
+      "new_homework": "New homework was received",
+      "new_message": "A new message was received",
+      "new_exam": "A new exam was received",
+      "timetable_change": "A timetable change was received",
+      "arrival_at_school": "An arrival at school was recorded"
+    }
   }
 }

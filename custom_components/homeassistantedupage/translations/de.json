@@ -64,5 +64,15 @@
         }
       }
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_grade": "Eine neue Note wurde empfangen",
+      "new_homework": "Eine neue Hausaufgabe wurde empfangen",
+      "new_message": "Eine neue Nachricht wurde empfangen",
+      "new_exam": "Eine neue Prüfung wurde empfangen",
+      "timetable_change": "Eine Stundenplanänderung wurde empfangen",
+      "arrival_at_school": "Eine Ankunft in der Schule wurde erfasst"
+    }
   }
 }

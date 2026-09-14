@@ -64,5 +64,15 @@
         }
       }
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_grade": "Bola prijatá nová známka",
+      "new_homework": "Bola prijatá nová domáca úloha",
+      "new_message": "Bola prijatá nová správa",
+      "new_exam": "Bola prijatá nová skúška",
+      "timetable_change": "Bola prijatá zmena rozvrhu",
+      "arrival_at_school": "Bol zaznamenaný príchod do školy"
+    }
   }
 }

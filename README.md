@@ -17,6 +17,8 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 - Canteen calendar for snacks, lunches, and afternoon snacks
 - Configurable per-subject grade sensors
 - Notification sensor covering all available EduPage event types
+- Event entity for automation-friendly new grade, homework, message, exam,
+  timetable-change, and school-arrival events
 - Structured, bounded notification data for dashboards and automations
 - Sensors for timetable changes and missing teachers
 - Sensor showing the next school-bell time
@@ -87,6 +89,7 @@ The exact entity IDs are assigned by Home Assistant and may differ from the exam
 | Canteen calendar | Current or next meal | Snack, lunch, and afternoon-snack events |
 | Subject sensor | Number of grades | Grade details in attributes |
 | Notification sensor | Number of notifications | Structured events, event counts, and legacy flat attributes |
+| Event entity | Timestamp of the latest supported event | New grade, homework, message, exam, timetable-change, and arrival events |
 | Timetable-changes sensor | Number of changes today | Changed class, lesson, title, and action |
 | Missing-teachers sensor | Number of missing teachers today | Teacher names and person IDs |
 | Next-ringing sensor | Next ringing time | Ringing type and time |
@@ -228,6 +231,45 @@ content: >-
     No notifications available.
   {% endif %}
 ```
+
+### Using EduPage events in automations
+
+The event entity changes state whenever a new supported EduPage timeline item
+is received after the integration has started. Existing notifications form the
+initial baseline and are not replayed during setup or after a Home Assistant
+restart.
+
+Supported Home Assistant event types are:
+
+- `new_grade`
+- `new_homework`
+- `new_message`
+- `new_exam`
+- `timetable_change`
+- `arrival_at_school`
+
+Example automation trigger:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: event.edupage_events_example_student
+conditions:
+  - condition: template
+    value_template: "{{ trigger.to.attributes.event_type == 'new_homework' }}"
+actions:
+  - action: notify.notify
+    data:
+      title: New homework
+      message: >-
+        {{ trigger.to.attributes.subject or 'EduPage' }}:
+        {{ trigger.to.attributes.text }}
+```
+
+Depending on the event, attributes can include the EduPage event ID, student,
+subject, author, timestamp, deadline, completion state, starred state, and raw
+additional event data. An arrival event only represents a recorded arrival; it
+is not a reliable continuous presence state.
 
 There is currently no dedicated EduPage dashboard card. Home Assistant's standard calendar, entity, Markdown, and template cards can be used instead.
 

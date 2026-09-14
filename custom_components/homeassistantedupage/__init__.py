@@ -291,7 +291,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             del hass.data[DOMAIN][entry.entry_id]
         return False
 
-    await hass.config_entries.async_forward_entry_setups(entry, ["calendar", "sensor"])
+    await hass.config_entries.async_forward_entry_setups(
+        entry, ["calendar", "sensor", "event"]
+    )
     _LOGGER.debug("INIT forwarded")
 
     await _setup_services(hass)
@@ -486,12 +488,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload ConfigEntry."""
     _LOGGER.debug("INIT called async_unload_entry")
 
-    unload_calendar = await hass.config_entries.async_forward_entry_unload(
-        entry, "calendar"
+    unload_results = await asyncio.gather(
+        *(
+            hass.config_entries.async_forward_entry_unload(entry, platform)
+            for platform in ("calendar", "sensor", "event")
+        )
     )
-    unload_sensor = await hass.config_entries.async_forward_entry_unload(entry, "sensor")
-
-    unload_ok = unload_calendar and unload_sensor
+    unload_ok = all(unload_results)
 
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)

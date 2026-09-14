@@ -8,6 +8,8 @@ from typing import Any
 from homeassistant.components.event import EventEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -19,6 +21,7 @@ EVENT_NEW_MESSAGE = "new_message"
 EVENT_NEW_EXAM = "new_exam"
 EVENT_TIMETABLE_CHANGE = "timetable_change"
 EVENT_ARRIVAL_AT_SCHOOL = "arrival_at_school"
+EVENT_EDUPAGE = f"{DOMAIN}_event"
 
 EVENT_TYPES = [
     EVENT_NEW_GRADE,
@@ -95,7 +98,19 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
         self._student_name = student_name or str(student_id)
         self._attr_name = f"EduPage - Events {self._student_name}"
         self._attr_unique_id = f"edupage_events_{self._student_id}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, str(self._student_id))},
+            name=f"EduPage - {self._student_name}",
+            manufacturer="EduPage",
+        )
         self._known_event_ids = self._notification_ids()
+
+    def _device_id(self) -> str | None:
+        """Return the Home Assistant device ID for this student."""
+        device = dr.async_get(self.coordinator.hass).async_get_device(
+            identifiers={(DOMAIN, str(self._student_id))}
+        )
+        return device.id if device is not None else None
 
     def _notifications(self) -> list[Any]:
         """Return current timeline notifications."""
@@ -163,9 +178,18 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
             raw_type = _event_type_value(event)
             mapped_type = _TYPE_MAP.get(raw_type)
             if mapped_type is not None:
+                attributes = self._event_attributes(event, raw_type)
                 self._trigger_event(
                     mapped_type,
-                    self._event_attributes(event, raw_type),
+                    attributes,
+                )
+                self.coordinator.hass.bus.async_fire(
+                    EVENT_EDUPAGE,
+                    {
+                        "device_id": self._device_id(),
+                        "type": mapped_type,
+                        **attributes,
+                    },
                 )
                 self.async_write_ha_state()
                 event_triggered = True

@@ -239,6 +239,12 @@ is received after the integration has started. Existing notifications form the
 initial baseline and are not replayed during setup or after a Home Assistant
 restart.
 
+The same event types are available as device triggers in Home Assistant's
+visual automation editor. Select the EduPage device for the student and then
+choose the required trigger, such as **A new grade was received** or **New
+homework was received**. Trigger data contains the same structured attributes
+as the event entity.
+
 Supported Home Assistant event types are:
 
 - `new_grade`

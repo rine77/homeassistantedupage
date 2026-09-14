@@ -133,3 +133,13 @@ def test_event_attributes_are_structured_and_serializable(coordinator):
     assert attributes["deadline"] == "2026-09-16"
     assert attributes["timestamp"] == "2026-09-14T08:00:00"
     assert attributes["is_starred"] is True
+
+
+def test_event_entity_creates_student_device(coordinator):
+    """The event entity belongs to a stable per-student HA device."""
+    entity = _entity(coordinator)
+
+    assert entity.device_info["identifiers"] == {
+        ("homeassistantedupage", "1")
+    }
+    assert entity.device_info["name"] == "EduPage - Max Example"

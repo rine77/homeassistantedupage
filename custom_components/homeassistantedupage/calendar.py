@@ -1,13 +1,15 @@
 import logging
-from datetime import datetime, timedelta, date
-from typing import Optional
+from datetime import date, datetime, time, timedelta
+from typing import Any, Optional
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN
+from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
+from .event import _event_type_value
 from zoneinfo import ZoneInfo
 from edupage_api.timetables import Lesson
 from edupage_api.lunches import Meal
@@ -27,6 +29,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     edupage_canteen_calendar = EdupageCanteenCalendar(coordinator, entry.data)
     calendars.append(edupage_canteen_calendar)
+
+    edupage_assignments_calendar = EduPageAssignmentsCalendar(
+        coordinator, entry.data
+    )
+    calendars.append(edupage_assignments_calendar)
 
     async_add_entities(calendars)
 
@@ -296,3 +303,139 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
             return self.map_meal_to_calender_event(next_meal, next_day)
 
         return None
+
+
+_HOMEWORK_TYPE = "homework"
+_EXAM_TYPES = {
+    "bexam",
+    "oexam",
+    "rexam",
+    "pexam",
+    "sexam",
+    "testing",
+    "testpridelenie",
+}
+
+
+def _parse_notification_date(value: Any) -> date | None:
+    """Parse the date portion of an EduPage notification deadline."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value).strip()[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+class EduPageAssignmentsCalendar(CoordinatorEntity, CalendarEntity):
+    """Expose homework deadlines and exams as an EduPage calendar."""
+
+    def __init__(self, coordinator, data):
+        """Initialize the assignments calendar."""
+        super().__init__(coordinator)
+        self._data = data
+        student = coordinator.data.get("student", {}) if coordinator.data else {}
+        self._student_id = student.get("id", data.get(CONF_STUDENT_ID, "unknown"))
+        self._student_name = student.get("name") or data.get(
+            CONF_STUDENT_NAME, "Unknown Student"
+        )
+        self._attr_name = f"EduPage - Assignments {self._student_name}"
+        self._attr_unique_id = f"edupage_assignments_{self._student_id}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, str(self._student_id))},
+            name=f"EduPage - {self._student_name}",
+            manufacturer="EduPage",
+        )
+
+    @property
+    def available(self) -> bool:
+        """Return True because an empty assignments calendar is valid."""
+        return True
+
+    def _subject_name(self, subject_id: Any) -> str | None:
+        """Resolve a subject ID through the coordinator's subject list."""
+        if subject_id is None or not self.coordinator.data:
+            return None
+        for subject in self.coordinator.data.get("subjects", []) or []:
+            if str(getattr(subject, "subject_id", "")) == str(subject_id):
+                return getattr(subject, "name", None)
+        return None
+
+    def _map_notification(self, notification: Any) -> CalendarEvent | None:
+        """Map a supported EduPage notification to an all-day event."""
+        raw_type = _event_type_value(notification)
+        if raw_type != _HOMEWORK_TYPE and raw_type not in _EXAM_TYPES:
+            return None
+
+        additional_data = getattr(notification, "additional_data", None) or {}
+        event_date = _parse_notification_date(additional_data.get("date"))
+        if event_date is None:
+            return None
+
+        subject = self._subject_name(additional_data.get("predmetid"))
+        text = str(getattr(notification, "text", None) or "Assignment")
+        author = getattr(notification, "author", None)
+        author_name = getattr(author, "name", None) or author
+
+        kind = "Homework" if raw_type == _HOMEWORK_TYPE else "Exam"
+        completed = raw_type == _HOMEWORK_TYPE and bool(
+            getattr(notification, "is_done", False)
+        )
+        summary_parts = []
+        if completed:
+            summary_parts.append("[Completed]")
+        summary_parts.append(f"[{kind}]")
+        if subject:
+            summary_parts.append(f"{subject}:")
+        summary_parts.append(text)
+
+        description_parts = [f"Type: {kind}"]
+        if subject:
+            description_parts.append(f"Subject: {subject}")
+        if author_name:
+            description_parts.append(f"Author: {author_name}")
+
+        return CalendarEvent(
+            start=event_date,
+            end=event_date + timedelta(days=1),
+            summary=" ".join(summary_parts),
+            description="\n".join(description_parts),
+        )
+
+    def _calendar_events(self) -> list[CalendarEvent]:
+        """Return all supported dated notifications in stable order."""
+        if not self.coordinator.data:
+            return []
+        events = [
+            event
+            for notification in self.coordinator.data.get("notifications", []) or []
+            if (event := self._map_notification(notification)) is not None
+        ]
+        return sorted(events, key=lambda event: (event.start, event.summary))
+
+    @property
+    def event(self) -> CalendarEvent | None:
+        """Return today's or the next assignment or exam."""
+        today = datetime.now(ZoneInfo(self.hass.config.time_zone)).date()
+        return next(
+            (event for event in self._calendar_events() if event.end > today),
+            None,
+        )
+
+    async def async_get_events(
+        self, hass, start_date: datetime, end_date: datetime
+    ) -> list[CalendarEvent]:
+        """Return assignments and exams overlapping the requested range."""
+        start_day = start_date.date()
+        end_day = end_date.date()
+        if end_date.time() != time.min:
+            end_day += timedelta(days=1)
+        return [
+            event
+            for event in self._calendar_events()
+            if event.end > start_day and event.start < end_day
+        ]

@@ -220,6 +220,7 @@ async def test_always_creates_canteen_calendar(hass: HomeAssistant):
     names = {type(e).__name__ for e in added}
     assert "EdupageCalendar" in names
     assert "EdupageCanteenCalendar" in names
+    assert "EduPageAssignmentsCalendar" in names
 
 
 # ---------------------------------------------------------------------------

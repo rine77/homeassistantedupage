@@ -15,6 +15,7 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 
 - Lesson calendar with upcoming and cancelled lessons
 - Canteen calendar for snacks, lunches, and afternoon snacks
+- Assignments calendar for homework deadlines and exams
 - Configurable per-subject grade sensors
 - Notification sensor covering all available EduPage event types
 - Event entity for automation-friendly new grade, homework, message, exam,
@@ -88,6 +89,7 @@ The exact entity IDs are assigned by Home Assistant and may differ from the exam
 | --- | --- | --- |
 | Lesson calendar | Current or next lesson | Timetable and cancelled lessons as calendar events |
 | Canteen calendar | Current or next meal | Snack, lunch, and afternoon-snack events |
+| Assignments calendar | Current or next assignment | Homework deadlines and exams as all-day events |
 | Subject sensor | Number of grades | Grade details in attributes |
 | Notification sensor | Number of notifications | Structured events, event counts, and legacy flat attributes |
 | Event entity | Timestamp of the latest supported event | New grade, homework, message, exam, timetable-change, and arrival events |
@@ -144,6 +146,29 @@ See the [Home Assistant calendar documentation](https://www.home-assistant.io/in
 The canteen calendar is created even when no menu is currently available. If supported by the school, it contains snack, lunch, and afternoon-snack events for the next 14 days.
 
 A missing or empty menu therefore results in an empty calendar rather than the entity being omitted. Not every school uses the EduPage canteen feature.
+
+### Assignments calendar
+
+The assignments calendar combines homework deadlines and exams returned by
+EduPage. Both appear as all-day events on their respective date. Homework that
+EduPage reports as completed remains visible and is marked with a `[Completed]`
+prefix.
+
+The calendar is created even when no assignment is currently available. Its
+contents depend on the notifications returned by EduPage, so older entries may
+disappear when EduPage no longer includes their notifications.
+
+Example dashboard card:
+
+```yaml
+type: calendar
+entities:
+  - calendar.edupage_assignments_example_student
+initial_view: listWeek
+```
+
+The `calendar.get_events` action shown above can also be used with this entity
+to retrieve homework deadlines and exams for automations.
 
 ## Homework to-do list
 

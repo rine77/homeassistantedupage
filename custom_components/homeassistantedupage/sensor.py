@@ -1,21 +1,25 @@
 import logging
 import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime
 
 from unidecode import unidecode
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 from .const import (
     CONF_STUDENT_ID,
     CONF_STUDENT_NAME,
     CONF_SUBJECT_IDS,
     DOMAIN,
 )
+from .calendar import _EXAM_TYPES, _parse_notification_date
+from .event import _event_type_value
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
 
@@ -212,6 +216,16 @@ async def async_setup_entry(
             term_key="first",
         )
     )
+    sensors.extend(
+        [
+            EduPageOpenHomeworkSensor(coordinator, student_id, student_name),
+            EduPageOverdueHomeworkSensor(coordinator, student_id, student_name),
+            EduPageNextHomeworkDeadlineSensor(
+                coordinator, student_id, student_name
+            ),
+            EduPageUpcomingExamsSensor(coordinator, student_id, student_name),
+        ]
+    )
     sensors.append(
         EduPageTermAverageSensor(
             coordinator,
@@ -222,6 +236,213 @@ async def async_setup_entry(
     )
 
     async_add_entities(sensors, True)
+
+
+class EduPageAssignmentSensor(StateRestoringSensor):
+    """Base class for sensors derived from assignment notifications."""
+
+    _data_key = "notifications"
+
+    def __init__(self, coordinator, student_id, student_name) -> None:
+        """Initialize a sensor associated with the student's device."""
+        super().__init__(coordinator)
+        self._student_id = student_id
+        self._student_name = student_name or str(student_id)
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, str(student_id))},
+            name=f"EduPage - {self._student_name}",
+            manufacturer="EduPage",
+        )
+
+    @property
+    def _notifications(self):
+        """Return the latest notification data."""
+        if not self.coordinator.data:
+            return []
+        return self.coordinator.data.get("notifications", []) or []
+
+    def _homework(self):
+        """Return homework notifications, including undated items."""
+        return [
+            notification
+            for notification in self._notifications
+            if _event_type_value(notification) == "homework"
+        ]
+
+    def _dated_exams(self):
+        """Return pairs of exam dates and exam notifications."""
+        exams = []
+        for notification in self._notifications:
+            if _event_type_value(notification) not in _EXAM_TYPES:
+                continue
+            additional_data = getattr(notification, "additional_data", None) or {}
+            if (exam_date := _parse_notification_date(additional_data.get("date"))):
+                exams.append((exam_date, notification))
+        return exams
+
+    def _due_date(self, notification) -> date | None:
+        """Return a homework notification's deadline."""
+        additional_data = getattr(notification, "additional_data", None) or {}
+        return _parse_notification_date(additional_data.get("date"))
+
+    @staticmethod
+    def _today() -> date:
+        """Return today's local Home Assistant date."""
+        return dt_util.now().date()
+
+    def _state_with_fallback(self, fresh_value):
+        """Expose a fresh value or retain the last value during an outage."""
+        if self._data_is_fresh():
+            return self._set_value(fresh_value)
+        return self._last_value
+
+    @property
+    def extra_state_attributes(self):
+        """Expose whether the notification data is stale."""
+        return {"data_stale": self.data_stale}
+
+
+class EduPageOpenHomeworkSensor(EduPageAssignmentSensor):
+    """Count incomplete homework notifications."""
+
+    def __init__(self, coordinator, student_id, student_name) -> None:
+        """Initialize the open-homework sensor."""
+        super().__init__(coordinator, student_id, student_name)
+        self._attr_name = f"EduPage - Open homework {self._student_name}"
+        self._attr_unique_id = f"edupage_open_homework_{student_id}"
+        self._attr_icon = "mdi:clipboard-text-outline"
+
+    def _coerce_restored(self, raw_state):
+        """Restore the homework count as an integer."""
+        try:
+            return int(float(raw_state))
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def state(self):
+        """Return the number of incomplete homework items."""
+        count = sum(
+            not bool(getattr(item, "is_done", False)) for item in self._homework()
+        )
+        return self._state_with_fallback(count)
+
+
+class EduPageOverdueHomeworkSensor(EduPageOpenHomeworkSensor):
+    """Count incomplete homework whose deadline has passed."""
+
+    def __init__(self, coordinator, student_id, student_name) -> None:
+        """Initialize the overdue-homework sensor."""
+        super().__init__(coordinator, student_id, student_name)
+        self._attr_name = f"EduPage - Overdue homework {self._student_name}"
+        self._attr_unique_id = f"edupage_overdue_homework_{student_id}"
+        self._attr_icon = "mdi:clipboard-alert-outline"
+
+    @property
+    def state(self):
+        """Return the number of incomplete overdue homework items."""
+        today = self._today()
+        count = sum(
+            not bool(getattr(item, "is_done", False))
+            and (due := self._due_date(item)) is not None
+            and due < today
+            for item in self._homework()
+        )
+        return self._state_with_fallback(count)
+
+
+class EduPageNextHomeworkDeadlineSensor(EduPageAssignmentSensor):
+    """Expose the next incomplete homework deadline."""
+
+    _attr_device_class = SensorDeviceClass.DATE
+
+    def __init__(self, coordinator, student_id, student_name) -> None:
+        """Initialize the next-deadline sensor."""
+        super().__init__(coordinator, student_id, student_name)
+        self._attr_name = f"EduPage - Next homework deadline {self._student_name}"
+        self._attr_unique_id = f"edupage_next_homework_deadline_{student_id}"
+        self._next_homework = None
+
+    def _coerce_restored(self, raw_state):
+        """Restore an ISO date from the recorder."""
+        try:
+            return date.fromisoformat(raw_state)
+        except (TypeError, ValueError):
+            return None
+
+    def _next_item(self):
+        """Return the nearest incomplete homework due today or later."""
+        today = self._today()
+        candidates = [
+            (due, item)
+            for item in self._homework()
+            if not bool(getattr(item, "is_done", False))
+            and (due := self._due_date(item)) is not None
+            and due >= today
+        ]
+        return (
+            min(candidates, key=lambda candidate: candidate[0])
+            if candidates
+            else None
+        )
+
+    @property
+    def state(self):
+        """Return the next incomplete homework deadline."""
+        if self._data_is_fresh():
+            next_item = self._next_item()
+            self._next_homework = next_item[1] if next_item else None
+            self._last_value = next_item[0] if next_item else None
+            return self._last_value
+        return self._last_value
+
+    @property
+    def extra_state_attributes(self):
+        """Expose details of the homework behind the next deadline."""
+        attributes = super().extra_state_attributes
+        if self._next_homework is None:
+            return attributes
+
+        additional_data = (
+            getattr(self._next_homework, "additional_data", None) or {}
+        )
+        subject_id = additional_data.get("predmetid")
+        subject = next(
+            (
+                getattr(item, "name", None)
+                for item in self.coordinator.data.get("subjects", []) or []
+                if str(getattr(item, "subject_id", "")) == str(subject_id)
+            ),
+            None,
+        )
+        attributes.update(
+            {
+                "text": getattr(self._next_homework, "text", None),
+                "subject": subject,
+                "days_remaining": (
+                    self._due_date(self._next_homework) - self._today()
+                ).days,
+            }
+        )
+        return attributes
+
+
+class EduPageUpcomingExamsSensor(EduPageOpenHomeworkSensor):
+    """Count dated exams scheduled for today or later."""
+
+    def __init__(self, coordinator, student_id, student_name) -> None:
+        """Initialize the upcoming-exams sensor."""
+        super().__init__(coordinator, student_id, student_name)
+        self._attr_name = f"EduPage - Upcoming exams {self._student_name}"
+        self._attr_unique_id = f"edupage_upcoming_exams_{student_id}"
+        self._attr_icon = "mdi:calendar-alert"
+
+    @property
+    def state(self):
+        """Return the number of exams scheduled for today or later."""
+        today = self._today()
+        count = sum(exam_date >= today for exam_date, _ in self._dated_exams())
+        return self._state_with_fallback(count)
 
 
 class EduPageSubjectSensor(StateRestoringSensor):

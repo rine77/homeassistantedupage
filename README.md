@@ -21,6 +21,8 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 - Event entity for automation-friendly new grade, homework, message, exam,
   timetable-change, and school-arrival events
 - Read-only homework to-do list with deadlines and completion status
+- Summary sensors for open and overdue homework, the next deadline, and
+  upcoming exams
 - Structured, bounded notification data for dashboards and automations
 - Sensors for timetable changes and missing teachers
 - Sensor showing the next school-bell time
@@ -94,6 +96,10 @@ The exact entity IDs are assigned by Home Assistant and may differ from the exam
 | Notification sensor | Number of notifications | Structured events, event counts, and legacy flat attributes |
 | Event entity | Timestamp of the latest supported event | New grade, homework, message, exam, timetable-change, and arrival events |
 | Homework to-do list | Number of incomplete homework items | Native read-only to-do items with deadlines and completion status |
+| Open-homework sensor | Number of incomplete homework items | Includes dated and undated homework |
+| Overdue-homework sensor | Number of overdue homework items | Incomplete homework with a deadline before today |
+| Next-homework-deadline sensor | Date of the next deadline | Includes subject, assignment text, and remaining days in attributes |
+| Upcoming-exams sensor | Number of upcoming exams | Dated exams scheduled for today or later |
 | Timetable-changes sensor | Number of changes today | Changed class, lesson, title, and action |
 | Missing-teachers sensor | Number of missing teachers today | Teacher names and person IDs |
 | Next-ringing sensor | Next ringing time | Ringing type and time |
@@ -195,6 +201,39 @@ response_variable: homework
 ```
 
 Replace the example entity ID with the to-do entity created on your system.
+
+## Assignment summary sensors
+
+Four sensors provide compact states for dashboards and automations:
+
+- **Open homework** counts every incomplete homework notification, including
+  assignments without a deadline.
+- **Overdue homework** counts incomplete homework with a deadline before today.
+- **Next homework deadline** exposes the nearest incomplete deadline from today
+  onward. Its attributes include the subject, assignment text, and the number
+  of remaining days.
+- **Upcoming exams** counts dated exams scheduled for today or later.
+
+All four sensors retain their last known state during a temporary EduPage
+notification outage and expose `data_stale: true` while that value is stale.
+
+Example entities card:
+
+```yaml
+type: entities
+title: School overview
+entities:
+  - entity: sensor.edupage_open_homework_example_student
+    name: Open homework
+  - entity: sensor.edupage_overdue_homework_example_student
+    name: Overdue homework
+  - entity: sensor.edupage_next_homework_deadline_example_student
+    name: Next deadline
+  - entity: sensor.edupage_upcoming_exams_example_student
+    name: Upcoming exams
+```
+
+Replace the example entity IDs with the sensors created on your system.
 
 ## Grade sensors
 

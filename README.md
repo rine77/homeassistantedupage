@@ -19,6 +19,7 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 - Notification sensor covering all available EduPage event types
 - Event entity for automation-friendly new grade, homework, message, exam,
   timetable-change, and school-arrival events
+- Read-only homework to-do list with deadlines and completion status
 - Structured, bounded notification data for dashboards and automations
 - Sensors for timetable changes and missing teachers
 - Sensor showing the next school-bell time
@@ -90,6 +91,7 @@ The exact entity IDs are assigned by Home Assistant and may differ from the exam
 | Subject sensor | Number of grades | Grade details in attributes |
 | Notification sensor | Number of notifications | Structured events, event counts, and legacy flat attributes |
 | Event entity | Timestamp of the latest supported event | New grade, homework, message, exam, timetable-change, and arrival events |
+| Homework to-do list | Number of incomplete homework items | Native read-only to-do items with deadlines and completion status |
 | Timetable-changes sensor | Number of changes today | Changed class, lesson, title, and action |
 | Missing-teachers sensor | Number of missing teachers today | Teacher names and person IDs |
 | Next-ringing sensor | Next ringing time | Ringing type and time |
@@ -142,6 +144,32 @@ See the [Home Assistant calendar documentation](https://www.home-assistant.io/in
 The canteen calendar is created even when no menu is currently available. If supported by the school, it contains snack, lunch, and afternoon-snack events for the next 14 days.
 
 A missing or empty menu therefore results in an empty calendar rather than the entity being omitted. Not every school uses the EduPage canteen feature.
+
+## Homework to-do list
+
+The integration creates a native Home Assistant to-do entity for each student,
+even when EduPage currently returns no homework. Its state is the number of
+incomplete homework items. Each item can include the subject, assignment text,
+deadline, completion status, and author.
+
+The entity is read-only because the EduPage API currently exposes homework
+notifications but no supported method for changing homework. Its items reflect
+the homework notifications available to the integration, so older assignments
+may disappear when EduPage no longer returns their notifications.
+
+Use `todo.get_items` to retrieve incomplete homework in an automation:
+
+```yaml
+action: todo.get_items
+target:
+  entity_id: todo.edupage_homework_example_student
+data:
+  status:
+    - needs_action
+response_variable: homework
+```
+
+Replace the example entity ID with the to-do entity created on your system.
 
 ## Grade sensors
 

@@ -292,7 +292,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
 
     await hass.config_entries.async_forward_entry_setups(
-        entry, ["calendar", "sensor", "event"]
+        entry, ["calendar", "sensor", "event", "todo"]
     )
     _LOGGER.debug("INIT forwarded")
 
@@ -491,7 +491,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_results = await asyncio.gather(
         *(
             hass.config_entries.async_forward_entry_unload(entry, platform)
-            for platform in ("calendar", "sensor", "event")
+            for platform in ("calendar", "sensor", "event", "todo")
         )
     )
     unload_ok = all(unload_results)

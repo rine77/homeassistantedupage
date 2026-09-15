@@ -208,8 +208,12 @@ async def test_always_creates_canteen_calendar(hass: HomeAssistant):
     from custom_components.homeassistantedupage import calendar as calendar_module
 
     coord = MagicMock()
-    coord.data = {"canteen_menu": {}}
+    coord.data = {
+        "student": {"id": 1, "name": "Max Example"},
+        "canteen_menu": {},
+    }
     entry = MagicMock()
+    entry.data = {"student_id": 1, "student_name": "Max Example"}
     hass.data["homeassistantedupage"] = {entry.entry_id: coord}
 
     added = []
@@ -221,6 +225,16 @@ async def test_always_creates_canteen_calendar(hass: HomeAssistant):
     assert "EdupageCalendar" in names
     assert "EdupageCanteenCalendar" in names
     assert "EduPageAssignmentsCalendar" in names
+    assert all(
+        entity.device_info["identifiers"]
+        == {("homeassistantedupage", "1")}
+        for entity in added
+    )
+    assert {entity.unique_id for entity in added} == {
+        "edupage_calendar_1",
+        "edupage_canteen_calendar_1",
+        "edupage_assignments_1",
+    }
 
 
 # ---------------------------------------------------------------------------

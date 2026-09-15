@@ -9,11 +9,11 @@ from homeassistant.components.event import EventEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
+from .entity_helpers import student_device_info
 
 EVENT_NEW_GRADE = "new_grade"
 EVENT_NEW_HOMEWORK = "new_homework"
@@ -98,10 +98,8 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
         self._student_name = student_name or str(student_id)
         self._attr_name = f"EduPage - Events {self._student_name}"
         self._attr_unique_id = f"edupage_events_{self._student_id}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(self._student_id))},
-            name=f"EduPage - {self._student_name}",
-            manufacturer="EduPage",
+        self._attr_device_info = student_device_info(
+            self._student_id, self._student_name
         )
         self._known_event_ids = self._notification_ids()
 

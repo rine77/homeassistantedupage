@@ -8,7 +8,6 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
@@ -20,6 +19,7 @@ from .const import (
 )
 from .calendar import _EXAM_TYPES, _parse_notification_date
 from .event import _event_type_value
+from .entity_helpers import student_device_info
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
 
@@ -248,10 +248,8 @@ class EduPageAssignmentSensor(StateRestoringSensor):
         super().__init__(coordinator)
         self._student_id = student_id
         self._student_name = student_name or str(student_id)
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(student_id))},
-            name=f"EduPage - {self._student_name}",
-            manufacturer="EduPage",
+        self._attr_device_info = student_device_info(
+            student_id, self._student_name
         )
 
     @property
@@ -464,6 +462,7 @@ class EduPageSubjectSensor(StateRestoringSensor):
         self._subject_name = unidecode(subject_name).replace(" ", "_").lower()
         self._subject_id = subject_id
         self._grades = grades or []
+        self._attr_device_info = student_device_info(student_id, student_name)
 
         self._attr_name = f"Edupage - {student_name} - {subject_name}"
         self._name = self._attr_name
@@ -579,6 +578,7 @@ class EduPageNotificationSensor(StateRestoringSensor):
         self._notifications = notifications
         self._student_id = student_id
         self._student_name = unidecode(student_name).replace(" ", "_").lower()
+        self._attr_device_info = student_device_info(student_id, student_name)
 
         self._attr_name = f"Edupage - Notification {student_name}"
         self._name = self._attr_name
@@ -744,6 +744,7 @@ class EduPageSubstitutionSensor(StateRestoringSensor):
         self._student_id = student_id
         self._student_name = _subject_slug(student_name)
         self._data_key = data_key
+        self._attr_device_info = student_device_info(student_id, student_name)
         label = (
             "Timetable Changes"
             if data_key == "timetable_changes"
@@ -801,6 +802,7 @@ class EduPageRingingSensor(StateRestoringSensor):
         self._data_key = "next_ringing"
         self._student_id = student_id
         self._student_name = _subject_slug(student_name)
+        self._attr_device_info = student_device_info(student_id, student_name)
         self._attr_name = f"Edupage - Next Ringing {student_name}"
         self._unique_id = (
             f"edupage_next_ringing_{self._student_id}_{self._student_name}"
@@ -850,6 +852,7 @@ class EduPageTermAverageSensor(StateRestoringSensor):
         self._student_id = student_id
         self._student_name = _subject_slug(student_name)
         self._term_key = term_key
+        self._attr_device_info = student_device_info(student_id, student_name)
         term_label = "1st" if term_key == "first" else "2nd"
 
         self._attr_name = f"Edupage - {term_label} Term Average {student_name}"

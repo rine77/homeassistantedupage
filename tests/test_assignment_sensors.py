@@ -217,3 +217,11 @@ async def test_setup_adds_all_assignment_sensors(hass, coordinator):
         EduPageNextHomeworkDeadlineSensor,
         EduPageUpcomingExamsSensor,
     }
+    assert all(
+        entity.device_info["identifiers"] == {(DOMAIN, "1")}
+        for entity in added
+    )
+    assert all(
+        entity.device_info["name"] == "EduPage - Max Example"
+        for entity in added
+    )

@@ -5,10 +5,10 @@ from typing import Any, Optional
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
+from .entity_helpers import student_device_info
 from .event import _event_type_value
 from zoneinfo import ZoneInfo
 from edupage_api.timetables import Lesson
@@ -48,18 +48,24 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         self._data = data
         self._events = []
         self._attr_name = "Edupage Calendar"
+        student = coordinator.data.get("student", {}) if coordinator.data else {}
+        self._student_id = student.get("id", data.get(CONF_STUDENT_ID, "unknown"))
+        self._student_name = student.get("name") or data.get(
+            CONF_STUDENT_NAME, "Unknown Student"
+        )
+        self._attr_device_info = student_device_info(
+            self._student_id, self._student_name
+        )
 
     @property
     def unique_id(self):
         """Return a unique ID for this calendar."""
-        student_id = self.coordinator.data.get("student", {}).get("id", "unknown")
-        return f"edupage_calendar_{student_id}"
+        return f"edupage_calendar_{self._student_id}"
 
     @property
     def name(self):
         """Return the name of the calendar."""
-        student_name = self.coordinator.data.get("student", {}).get("name", "Unknown Student")
-        return f"Edupage - {student_name}"
+        return f"Edupage - {self._student_name}"
 
     @property
     def available(self) -> bool:
@@ -183,18 +189,24 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
         self._data = data
         self._events = []
         self._attr_name = "Edupage Canteen Calendar"
+        student = coordinator.data.get("student", {}) if coordinator.data else {}
+        self._student_id = student.get("id", data.get(CONF_STUDENT_ID, "unknown"))
+        self._student_name = student.get("name") or data.get(
+            CONF_STUDENT_NAME, "Unknown Student"
+        )
+        self._attr_device_info = student_device_info(
+            self._student_id, self._student_name
+        )
 
     @property
     def unique_id(self):
         """Return a unique ID for this calendar."""
-        student_id = self.coordinator.data.get("student", {}).get("id", "unknown")
-        return f"edupage_canteen_calendar_{student_id}"
+        return f"edupage_canteen_calendar_{self._student_id}"
 
     @property
     def name(self):
         """Return the name of the calendar."""
-        student_name = self.coordinator.data.get("student", {}).get("name", "Unknown Student")
-        return f"Edupage Canteen - {student_name}"
+        return f"Edupage Canteen - {self._student_name}"
 
     @property
     def available(self) -> bool:
@@ -345,10 +357,8 @@ class EduPageAssignmentsCalendar(CoordinatorEntity, CalendarEntity):
         )
         self._attr_name = f"EduPage - Assignments {self._student_name}"
         self._attr_unique_id = f"edupage_assignments_{self._student_id}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(self._student_id))},
-            name=f"EduPage - {self._student_name}",
-            manufacturer="EduPage",
+        self._attr_device_info = student_device_info(
+            self._student_id, self._student_name
         )
 
     @property

@@ -5,11 +5,16 @@ from datetime import datetime, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+)
 import voluptuous as vol
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .homeassistant_edupage import Edupage, EdupageSessionExpired
+from .entity_helpers import student_device_info
 from edupage_api.lunches import MealType
 from edupage_api.grades import Term
 from .const import (
@@ -207,6 +212,35 @@ async def _async_update_listener(
     await hass.config_entries.async_reload(entry.entry_id)
 
 
+def _async_group_config_entry_entities(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    student_id,
+    student_name,
+) -> None:
+    """Attach all existing config-entry entities to the student's device.
+
+    This explicitly migrates older and disabled entity-registry entries that
+    are not instantiated during platform setup and therefore cannot acquire
+    newly added ``device_info`` automatically.
+    """
+    if hass.config_entries.async_get_entry(entry.entry_id) is None:
+        return
+
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        **student_device_info(student_id, student_name),
+    )
+    entity_registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(
+        entity_registry, entry.entry_id
+    ):
+        if entity.device_id != device.id:
+            entity_registry.async_update_entity(
+                entity.entity_id, device_id=device.id
+            )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up EduPage integration and validate the stored session."""
     if DOMAIN not in hass.data:
@@ -290,6 +324,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entry.entry_id in hass.data[DOMAIN]:
             del hass.data[DOMAIN][entry.entry_id]
         return False
+
+    current_student = coordinator.data.get("student", {}) if coordinator.data else {}
+    _async_group_config_entry_entities(
+        hass,
+        entry,
+        current_student.get("id", student_id),
+        current_student.get("name") or stored_student_name or str(student_id),
+    )
 
     await hass.config_entries.async_forward_entry_setups(
         entry, ["calendar", "sensor", "event", "todo"]

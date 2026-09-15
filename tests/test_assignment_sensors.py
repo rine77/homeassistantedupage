@@ -61,7 +61,11 @@ def coordinator(hass: HomeAssistant):
         config_entry=None,
     )
     coord.data = {
-        "student": {"id": 1, "name": "Max Example"},
+        "student": {
+            "id": 1,
+            "name": "Max Example",
+            "class_names": ["4b"],
+        },
         "notifications": [],
         "subjects": [SimpleNamespace(subject_id=1, name="Maths")],
         "data_ok": {"notifications": True},
@@ -98,7 +102,7 @@ def test_open_homework_counts_incomplete_items(coordinator):
 def test_assignment_sensors_exclude_sibling_notifications(coordinator):
     """Homework and exams are scoped to the configured student."""
     coordinator.data["notifications"] = [
-        _notification(1, recipient="Max Example"),
+        _notification(1, recipient="4b · Maths"),
         _notification(2, recipient="Anna Example"),
         _notification(
             3, event_type=_EventType.EXAM, recipient="Max Example"

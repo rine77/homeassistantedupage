@@ -58,7 +58,11 @@ def assignments_calendar(hass: HomeAssistant):
         config_entry=None,
     )
     coordinator.data = {
-        "student": {"id": 1, "name": "Max Example"},
+        "student": {
+            "id": 1,
+            "name": "Max Example",
+            "class_names": ["4b"],
+        },
         "notifications": [],
         "subjects": [SimpleNamespace(subject_id=1, name="Maths")],
     }
@@ -128,7 +132,7 @@ def test_unsupported_or_undated_notifications_are_ignored(assignments_calendar):
 def test_sibling_assignments_are_ignored(assignments_calendar):
     """A calendar contains assignments for its configured student only."""
     assert assignments_calendar._map_notification(
-        _notification(1, recipient="Max Example")
+        _notification(1, recipient="4b · Maths")
     ) is not None
     assert assignments_calendar._map_notification(
         _notification(2, recipient="Anna Example")

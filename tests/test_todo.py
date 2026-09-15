@@ -57,7 +57,11 @@ def coordinator(hass: HomeAssistant):
         config_entry=None,
     )
     coord.data = {
-        "student": {"id": 1, "name": "Max Example"},
+        "student": {
+            "id": 1,
+            "name": "Max Example",
+            "class_names": ["4b"],
+        },
         "notifications": [],
         "subjects": [SimpleNamespace(subject_id=1, name="Maths")],
     }
@@ -122,9 +126,15 @@ def test_only_homework_for_selected_student_is_included(coordinator):
         _event(1, recipient="Max Example"),
         _event(2, recipient="Anna Example"),
         _event(3, recipient="*"),
+        _event(4, recipient="4b · Maths"),
+        _event(5, recipient="03b"),
     ]
 
-    assert [item.uid for item in _entity(coordinator).todo_items] == ["1", "3"]
+    assert [item.uid for item in _entity(coordinator).todo_items] == [
+        "1",
+        "3",
+        "4",
+    ]
 
 
 def test_items_are_live_and_sorted_open_first_by_due_date(coordinator):

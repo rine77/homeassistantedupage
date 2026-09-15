@@ -9,6 +9,7 @@ the pytest-homeassistant-custom-component ``hass`` fixture.
 """
 
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -249,6 +250,12 @@ class _OkStudent:
     name = "Max"
 
 
+class _StudentWithClass(_OkStudent):
+    """Student carrying the class ID exposed by edupage-api."""
+
+    class_id = 7
+
+
 def _edupage_with_grades_failing():
     """An edupage whose get_grades() raises but everything else succeeds."""
     edupage = MagicMock()
@@ -278,6 +285,23 @@ async def test_collect_data_continues_when_get_grades_fails():
     assert data["notifications"] == [{"id": 1}]
     assert "timetable" in data
     assert "canteen_menu" in data
+
+
+async def test_collect_data_resolves_student_class_names():
+    """Class metadata is retained for assignment recipient matching."""
+    edupage = _edupage_with_grades_failing()
+    edupage.get_classes = AsyncMock(
+        return_value=[SimpleNamespace(class_id=7, short="4b", name="Klasse 4b")]
+    )
+
+    data = await _collect_data(edupage, _StudentWithClass(), "Max")
+
+    assert data["student"] == {
+        "id": 1,
+        "name": "Max",
+        "class_id": 7,
+        "class_names": ["4b", "Klasse 4b"],
+    }
 
 
 async def test_collect_data_continues_when_get_subjects_fails():

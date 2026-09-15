@@ -249,6 +249,8 @@ class EduPageAssignmentSensor(StateRestoringSensor):
         super().__init__(coordinator)
         self._student_id = student_id
         self._student_name = student_name or str(student_id)
+        student = coordinator.data.get("student", {}) if coordinator.data else {}
+        self._student_class_names = student.get("class_names", [])
         self._attr_device_info = student_device_info(
             student_id, self._student_name
         )
@@ -263,7 +265,10 @@ class EduPageAssignmentSensor(StateRestoringSensor):
             for notification in self.coordinator.data.get("notifications", [])
             or []
             if event_matches_student(
-                notification, self._student_id, self._student_name
+                notification,
+                self._student_id,
+                self._student_name,
+                self._student_class_names,
             )
         ]
 

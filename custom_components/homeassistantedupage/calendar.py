@@ -356,6 +356,7 @@ class EduPageAssignmentsCalendar(CoordinatorEntity, CalendarEntity):
         self._student_name = student.get("name") or data.get(
             CONF_STUDENT_NAME, "Unknown Student"
         )
+        self._student_class_names = student.get("class_names", [])
         self._attr_name = f"EduPage - Assignments {self._student_name}"
         self._attr_unique_id = f"edupage_assignments_{self._student_id}"
         self._attr_device_info = student_device_info(
@@ -382,7 +383,10 @@ class EduPageAssignmentsCalendar(CoordinatorEntity, CalendarEntity):
         if raw_type != _HOMEWORK_TYPE and raw_type not in _EXAM_TYPES:
             return None
         if not event_matches_student(
-            notification, self._student_id, self._student_name
+            notification,
+            self._student_id,
+            self._student_name,
+            self._student_class_names,
         ):
             return None
 

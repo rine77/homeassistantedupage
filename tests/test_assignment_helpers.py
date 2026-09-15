@@ -33,3 +33,29 @@ def test_keeps_events_without_specific_recipient():
     assert event_matches_student(
         SimpleNamespace(recipient="*"), 42, "Max Koval"
     )
+    assert event_matches_student(
+        SimpleNamespace(recipient="Gesamte Schule"), 42, "Max Koval"
+    )
+
+
+def test_matches_class_and_teaching_group_recipients():
+    """Class-wide and subject-group assignments belong to the student."""
+    assert event_matches_student(
+        SimpleNamespace(recipient="4b"), 42, "Nina Lange", ["4b"]
+    )
+    assert event_matches_student(
+        SimpleNamespace(recipient="4b · Musik"),
+        42,
+        "Nina Lange",
+        ["4b"],
+    )
+    assert not event_matches_student(
+        SimpleNamespace(recipient="03b"), 42, "Nina Lange", ["4b"]
+    )
+
+
+def test_keeps_group_recipient_when_class_metadata_is_unavailable():
+    """A failed optional class lookup must not hide valid homework."""
+    assert event_matches_student(
+        SimpleNamespace(recipient="4b · Musik"), 42, "Nina Lange"
+    )

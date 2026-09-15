@@ -12,6 +12,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .assignment_helpers import event_recipient
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
 from .entity_helpers import student_device_info
 
@@ -148,6 +149,7 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
             "text": getattr(event, "text", None),
             "timestamp": getattr(event, "timestamp", None),
             "author": author_name,
+            "recipient": event_recipient(event),
             "subject": self._subject_name(subject_id),
             "subject_id": subject_id,
             "deadline": additional_data.get("date"),

@@ -47,6 +47,32 @@ async def _collect_data(edupage, student, student_name):
     which stays ``True`` when only one section fails).
     """
     data_ok = {}
+    student_data = {"id": student.person_id, "name": student_name}
+    if (class_id := getattr(student, "class_id", None)) is not None:
+        student_data["class_id"] = class_id
+        try:
+            classes = await edupage.get_classes()
+            student_class = next(
+                (
+                    item
+                    for item in classes or []
+                    if str(getattr(item, "class_id", "")) == str(class_id)
+                ),
+                None,
+            )
+            if student_class is not None:
+                student_data["class_names"] = list(
+                    dict.fromkeys(
+                        value
+                        for value in (
+                            getattr(student_class, "short", None),
+                            getattr(student_class, "name", None),
+                        )
+                        if value
+                    )
+                )
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.warning("get_classes failed: %s", e)
 
     try:
         grades = await edupage.get_grades()
@@ -188,7 +214,7 @@ async def _collect_data(edupage, student, student_name):
         data_ok["school_year"] = False
 
     return {
-        "student": {"id": student.person_id, "name": student_name},
+        "student": student_data,
         "grades": grades,
         "subjects": subjects,
         "timetable": timetable_data,

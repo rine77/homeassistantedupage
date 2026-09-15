@@ -23,13 +23,23 @@ from custom_components.homeassistantedupage.sensor import (
 class _FakeEvent:
     """Minimal notification event with the fields the sensor reads."""
 
-    def __init__(self, event_id, event_type, text, timestamp, additional_data=None, author=None):
+    def __init__(
+        self,
+        event_id,
+        event_type,
+        text,
+        timestamp,
+        additional_data=None,
+        author=None,
+        recipient=None,
+    ):
         self.event_id = event_id
         self.event_type = event_type
         self.text = text
         self.timestamp = timestamp
         self.additional_data = additional_data
         self.author = author
+        self.recipient = recipient
 
 
 class _FakeSubject:
@@ -107,6 +117,7 @@ async def test_events_read_live_data_not_constructor_snapshot(hass, coordinator)
             timestamp=datetime(2026, 9, 1, 8, 0),
             additional_data={"date": "2026-09-05", "predmetid": 1},
             author=_FakeSubject(99, "Teacher"),
+            recipient="Max Example",
         )
     ]
     attrs = sensor.extra_state_attributes
@@ -117,6 +128,8 @@ async def test_events_read_live_data_not_constructor_snapshot(hass, coordinator)
     assert ev["text"] == "Read chapter 1"
     assert ev["deadline"] == "2026-09-05"
     assert ev["subject"] == "Maths"
+    assert ev["recipient"] == "Max Example"
+    assert attrs["event_1_recipient"] == "Max Example"
     # The old flat homework-only attribute is still exposed for compatibility.
     assert attrs["event_1_id"] == 10
 

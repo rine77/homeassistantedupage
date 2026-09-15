@@ -45,6 +45,7 @@ def _event(event_id, event_type, **kwargs):
         text=kwargs.get("text", "Example"),
         timestamp=kwargs.get("timestamp", datetime(2026, 9, 14, 8, 0)),
         author=kwargs.get("author"),
+        recipient=kwargs.get("recipient"),
         additional_data=kwargs.get("additional_data", {}),
         is_done=kwargs.get("is_done", False),
         is_starred=kwargs.get("is_starred", False),
@@ -120,6 +121,7 @@ def test_event_attributes_are_structured_and_serializable(coordinator):
         _EventType.HOMEWORK,
         text="Read chapter 1",
         author=SimpleNamespace(name="Mrs Teacher"),
+        recipient="Max Example",
         additional_data={"predmetid": 1, "date": "2026-09-16"},
         is_starred=True,
     )
@@ -130,6 +132,7 @@ def test_event_attributes_are_structured_and_serializable(coordinator):
     assert attributes["student_name"] == "Max Example"
     assert attributes["subject"] == "Maths"
     assert attributes["author"] == "Mrs Teacher"
+    assert attributes["recipient"] == "Max Example"
     assert attributes["deadline"] == "2026-09-16"
     assert attributes["timestamp"] == "2026-09-14T08:00:00"
     assert attributes["is_starred"] is True

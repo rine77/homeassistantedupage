@@ -34,6 +34,7 @@ def _notification(
     subject_id=1,
     author="Mrs Teacher",
     is_done=False,
+    recipient=None,
 ):
     """Create a notification used by the calendar tests."""
     return SimpleNamespace(
@@ -43,6 +44,7 @@ def _notification(
         additional_data={"date": event_date, "predmetid": subject_id},
         author=SimpleNamespace(name=author) if author else None,
         is_done=is_done,
+        recipient=recipient,
     )
 
 
@@ -121,6 +123,16 @@ def test_unsupported_or_undated_notifications_are_ignored(assignments_calendar):
         )
         is None
     )
+
+
+def test_sibling_assignments_are_ignored(assignments_calendar):
+    """A calendar contains assignments for its configured student only."""
+    assert assignments_calendar._map_notification(
+        _notification(1, recipient="Max Example")
+    ) is not None
+    assert assignments_calendar._map_notification(
+        _notification(2, recipient="Anna Example")
+    ) is None
 
 
 async def test_get_events_filters_range_and_sorts(assignments_calendar):

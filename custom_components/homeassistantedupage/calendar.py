@@ -7,6 +7,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from .assignment_helpers import event_matches_student
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
 from .entity_helpers import student_device_info
 from .event import _event_type_value
@@ -379,6 +380,10 @@ class EduPageAssignmentsCalendar(CoordinatorEntity, CalendarEntity):
         """Map a supported EduPage notification to an all-day event."""
         raw_type = _event_type_value(notification)
         if raw_type != _HOMEWORK_TYPE and raw_type not in _EXAM_TYPES:
+            return None
+        if not event_matches_student(
+            notification, self._student_id, self._student_name
+        ):
             return None
 
         additional_data = getattr(notification, "additional_data", None) or {}

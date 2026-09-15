@@ -11,6 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
+from .assignment_helpers import event_matches_student, event_recipient
 from .const import (
     CONF_STUDENT_ID,
     CONF_STUDENT_NAME,
@@ -257,7 +258,14 @@ class EduPageAssignmentSensor(StateRestoringSensor):
         """Return the latest notification data."""
         if not self.coordinator.data:
             return []
-        return self.coordinator.data.get("notifications", []) or []
+        return [
+            notification
+            for notification in self.coordinator.data.get("notifications", [])
+            or []
+            if event_matches_student(
+                notification, self._student_id, self._student_name
+            )
+        ]
 
     def _homework(self):
         """Return homework notifications, including undated items."""
@@ -652,6 +660,9 @@ class EduPageNotificationSensor(StateRestoringSensor):
                     else event.author
                 )
 
+            if (recipient := event_recipient(event)) is not None:
+                item["recipient"] = recipient
+
             event_number = len(events) + 1
             flat_attributes = {
                 f"event_{event_number}_id": item["id"],
@@ -660,7 +671,12 @@ class EduPageNotificationSensor(StateRestoringSensor):
                 f"event_{event_number}_timestamp": item["timestamp"],
             }
 
-            for optional_key in ("deadline", "subject", "author"):
+            for optional_key in (
+                "deadline",
+                "subject",
+                "author",
+                "recipient",
+            ):
                 if optional_key in item:
                     flat_attributes[
                         f"event_{event_number}_{optional_key}"

@@ -22,6 +22,16 @@ def _normalize_name(value: Any) -> str:
     return " ".join(unidecode(str(value)).casefold().split())
 
 
+def _contains_class_name(recipient: str, class_name: str) -> bool:
+    """Return whether a recipient contains a delimited class name."""
+    return bool(
+        re.search(
+            rf"(?<!\w){re.escape(class_name)}(?!\w)",
+            recipient,
+        )
+    )
+
+
 def event_matches_student(
     event: Any,
     student_id: Any,
@@ -67,9 +77,8 @@ def event_matches_student(
         if class_name
     ]
     for normalized_class in normalized_classes:
-        if normalized_class and (
-            normalized_recipient == normalized_class
-            or normalized_recipient.startswith(f"{normalized_class} ")
+        if normalized_class and _contains_class_name(
+            normalized_recipient, normalized_class
         ):
             return True
 

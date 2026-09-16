@@ -49,8 +49,20 @@ def test_matches_class_and_teaching_group_recipients():
         "Nina Lange",
         ["4b"],
     )
+    assert event_matches_student(
+        SimpleNamespace(recipient="SLJ 4.A - gramatika"),
+        42,
+        "Nina Lange",
+        ["4.A"],
+    )
     assert not event_matches_student(
         SimpleNamespace(recipient="03b"), 42, "Nina Lange", ["4b"]
+    )
+    assert not event_matches_student(
+        SimpleNamespace(recipient="SLJ 14.A - gramatika"),
+        42,
+        "Nina Lange",
+        ["4.A"],
     )
 
 

@@ -38,6 +38,7 @@ def _notification(
     subject_id=1,
     text="Read chapter 1",
     is_done=False,
+    recipient=None,
 ):
     """Create a notification used by the sensor tests."""
     return SimpleNamespace(
@@ -46,6 +47,7 @@ def _notification(
         additional_data={"date": due, "predmetid": subject_id},
         text=text,
         is_done=is_done,
+        recipient=recipient,
     )
 
 
@@ -59,7 +61,11 @@ def coordinator(hass: HomeAssistant):
         config_entry=None,
     )
     coord.data = {
-        "student": {"id": 1, "name": "Max Example"},
+        "student": {
+            "id": 1,
+            "name": "Max Example",
+            "class_names": ["4b"],
+        },
         "notifications": [],
         "subjects": [SimpleNamespace(subject_id=1, name="Maths")],
         "data_ok": {"notifications": True},
@@ -91,6 +97,26 @@ def test_open_homework_counts_incomplete_items(coordinator):
 
     assert sensor.state == 2
     assert sensor.extra_state_attributes == {"data_stale": False}
+
+
+def test_assignment_sensors_exclude_sibling_notifications(coordinator):
+    """Homework and exams are scoped to the configured student."""
+    coordinator.data["notifications"] = [
+        _notification(1, recipient="4b · Maths"),
+        _notification(2, recipient="Anna Example"),
+        _notification(
+            3, event_type=_EventType.EXAM, recipient="Max Example"
+        ),
+        _notification(
+            4, event_type=_EventType.EXAM, recipient="Anna Example"
+        ),
+    ]
+
+    homework = EduPageOpenHomeworkSensor(coordinator, 1, "Max Example")
+    exams = EduPageUpcomingExamsSensor(coordinator, 1, "Max Example")
+
+    assert homework.state == 1
+    assert exams.state == 1
 
 
 def test_overdue_homework_excludes_today_and_completed(coordinator):

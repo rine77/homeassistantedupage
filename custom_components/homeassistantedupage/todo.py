@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .assignment_helpers import event_matches_student
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
 from .entity_helpers import student_device_info
 from .event import _event_type_value
@@ -58,6 +59,8 @@ class EduPageHomeworkTodoEntity(CoordinatorEntity, TodoListEntity):
         super().__init__(coordinator)
         self._student_id = student_id
         self._student_name = student_name or str(student_id)
+        student = coordinator.data.get("student", {}) if coordinator.data else {}
+        self._student_class_names = student.get("class_names", [])
         self._attr_name = f"EduPage - Homework {self._student_name}"
         self._attr_unique_id = f"edupage_homework_{self._student_id}"
         self._attr_device_info = student_device_info(
@@ -111,6 +114,12 @@ class EduPageHomeworkTodoEntity(CoordinatorEntity, TodoListEntity):
             for event in notifications
             if _event_type_value(event) == _HOMEWORK_EVENT_TYPE
             and getattr(event, "event_id", None) is not None
+            and event_matches_student(
+                event,
+                self._student_id,
+                self._student_name,
+                self._student_class_names,
+            )
         ]
         return sorted(
             items,

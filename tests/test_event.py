@@ -32,6 +32,7 @@ def coordinator(hass: HomeAssistant):
     )
     coord.data = {
         "student": {"id": 1, "name": "Max Example"},
+        "grades": [],
         "notifications": [],
         "subjects": [SimpleNamespace(subject_id=1, name="Maths")],
     }
@@ -136,6 +137,84 @@ def test_event_attributes_are_structured_and_serializable(coordinator):
     assert attributes["deadline"] == "2026-09-16"
     assert attributes["timestamp"] == "2026-09-14T08:00:00"
     assert attributes["is_starred"] is True
+
+
+def test_grade_event_attributes_are_enriched_from_matching_grade(coordinator):
+    """Grade events expose structured data without parsing localized text."""
+    coordinator.data["grades"] = [
+        SimpleNamespace(
+            event_id="21",
+            subject_id=2,
+            subject_name="Slovak language and literature",
+            grade_n="10/10",
+            percent=100.0,
+            max_points=10.0,
+            class_grade_avg=8.4,
+            title="Written exercise",
+            comment="Well done",
+            teacher=SimpleNamespace(name="Mrs Teacher"),
+        )
+    ]
+    entity = _entity(coordinator)
+    event = _event(
+        21,
+        "znamka",
+        text="Známka - Slovenský jazyk a literatúra: 10/10",
+    )
+
+    attributes = entity._event_attributes(event, "znamka")
+
+    assert attributes["subject"] == "Slovak language and literature"
+    assert attributes["subject_id"] == 2
+    assert attributes["grade"] == "10/10"
+    assert attributes["grade_percent"] == 100.0
+    assert attributes["max_points"] == 10.0
+    assert attributes["class_avg"] == 8.4
+    assert attributes["title"] == "Written exercise"
+    assert attributes["comment"] == "Well done"
+    assert attributes["teacher"] == "Mrs Teacher"
+
+
+def test_grade_event_without_matching_grade_keeps_existing_attributes(coordinator):
+    """A missing grade object must not suppress or corrupt the event."""
+    entity = _entity(coordinator)
+    event = _event(
+        22,
+        "znamka",
+        text="Známka - Maths: 1",
+        additional_data={"predmetid": 1},
+    )
+
+    attributes = entity._event_attributes(event, "znamka")
+
+    assert attributes["event_id"] == 22
+    assert attributes["subject"] == "Maths"
+    assert "grade" not in attributes
+    assert "grade_percent" not in attributes
+
+
+def test_grade_enrichment_preserves_existing_subject_attributes(coordinator):
+    """Existing event fields retain their values and types for compatibility."""
+    coordinator.data["grades"] = [
+        SimpleNamespace(
+            event_id=23,
+            subject_id=1,
+            subject_name="Maths from grade",
+            grade_n="1",
+        )
+    ]
+    entity = _entity(coordinator)
+    event = _event(
+        23,
+        "znamka",
+        additional_data={"predmetid": "1"},
+    )
+
+    attributes = entity._event_attributes(event, "znamka")
+
+    assert attributes["subject"] == "Maths"
+    assert attributes["subject_id"] == "1"
+    assert attributes["grade"] == "1"
 
 
 def test_event_entity_creates_student_device(coordinator):

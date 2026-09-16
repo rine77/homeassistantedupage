@@ -134,6 +134,40 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
                 return getattr(subject, "name", None)
         return None
 
+    def _grade_for_event(self, event_id: Any) -> Any | None:
+        """Return the grade carrying the same EduPage event ID."""
+        if event_id is None or not self.coordinator.data:
+            return None
+
+        return next(
+            (
+                grade
+                for grade in self.coordinator.data.get("grades", []) or []
+                if str(getattr(grade, "event_id", "")) == str(event_id)
+            ),
+            None,
+        )
+
+    def _grade_attributes(self, event_id: Any) -> dict[str, Any]:
+        """Return structured attributes for a grade timeline event."""
+        grade = self._grade_for_event(event_id)
+        if grade is None:
+            return {}
+
+        teacher = getattr(grade, "teacher", None)
+        teacher_name = getattr(teacher, "name", None) or teacher
+        return {
+            "subject": getattr(grade, "subject_name", None),
+            "subject_id": getattr(grade, "subject_id", None),
+            "grade": getattr(grade, "grade_n", None),
+            "grade_percent": getattr(grade, "percent", None),
+            "max_points": getattr(grade, "max_points", None),
+            "class_avg": getattr(grade, "class_grade_avg", None),
+            "title": getattr(grade, "title", None),
+            "comment": getattr(grade, "comment", None),
+            "teacher": teacher_name,
+        }
+
     def _event_attributes(self, event: Any, raw_type: str) -> dict[str, Any]:
         """Map an EduPage timeline event to HA event attributes."""
         additional_data = getattr(event, "additional_data", None) or {}
@@ -141,8 +175,9 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
         author_name = getattr(author, "name", None) or author
         subject_id = additional_data.get("predmetid")
 
+        event_id = getattr(event, "event_id", None)
         attributes = {
-            "event_id": getattr(event, "event_id", None),
+            "event_id": event_id,
             "edupage_event_type": raw_type,
             "student_id": self._student_id,
             "student_name": self._student_name,
@@ -157,6 +192,17 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
             "is_starred": getattr(event, "is_starred", False),
             "additional_data": additional_data,
         }
+        if raw_type == "znamka":
+            grade_attributes = {
+                key: value
+                for key, value in self._grade_attributes(event_id).items()
+                if value is not None
+            }
+            for key in ("subject", "subject_id"):
+                if attributes.get(key) is None and key in grade_attributes:
+                    attributes[key] = grade_attributes[key]
+                grade_attributes.pop(key, None)
+            attributes.update(grade_attributes)
         return {
             key: _serialize_value(value)
             for key, value in attributes.items()

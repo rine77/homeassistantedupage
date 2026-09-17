@@ -2,44 +2,44 @@
   "config": {
     "flow_title": "Nastavenie EduPage",
     "error": {
-      "cannot_connect": "Chyba spojenia",
-      "invalid_auth": "Neplatné prihlasovacie údaje",
-      "invalid_code": "Potvrdzovací kód je neplatný alebo vypršal.",
-      "captcha_required": "EduPage vyžaduje CAPTCHA. Skúste to neskôr alebo skontrolujte svoje prihlasovacie údaje."
+      "cannot_connect": "Nepodarilo sa pripojiť k EduPage.",
+      "invalid_auth": "Nesprávne prihlasovacie údaje.",
+      "invalid_code": "Potvrdzovací kód je neplatný alebo jeho platnosť vypršala.",
+      "captcha_required": "EduPage vyžaduje overenie CAPTCHA. Skúste to znova neskôr alebo skontrolujte prihlasovacie údaje."
     },
     "step": {
       "user": {
         "data": {
           "password": "Heslo",
-          "username": "Meno používateľa",
-          "subdomain": "Subdoména"
+          "username": "Používateľské meno",
+          "subdomain": "Subdoména školy"
         },
-        "description": "Zadajte meno používateľa EduPage, heslo a subdoménu školy.\n\nAk máte povolené dvojfaktorové prihlasovanie, budete požiadaní o potvrdzovací kód z aplikácie EduPage.",
-        "title": "Prihláste sa k vášmu účtu Edupage"
+        "description": "Zadajte používateľské meno a heslo do EduPage a subdoménu školy.\n\nAk používate dvojstupňové overenie, v ďalšom kroku zadáte potvrdzovací kód z aplikácie EduPage.",
+        "title": "Prihlásenie do EduPage"
       },
       "two_factor": {
-        "title": "Dvojfaktorová autentifikácia",
-        "description": "Vyžaduje sa potvrdenie v mobilnej aplikácii EduPage. Zadajte potvrdzovací kód zobrazený tam.",
+        "title": "Dvojstupňové overenie",
+        "description": "V mobilnej aplikácii EduPage sa vyžaduje potvrdenie prihlásenia. Zadajte zobrazený potvrdzovací kód.",
         "data": {
           "two_factor_code": "Potvrdzovací kód"
         }
       },
       "select_student": {
-        "title": "Vyberte študenta",
-        "description": "Vyberte, ktorého študenta má táto integrácia sledovať.",
+        "title": "Výber žiaka",
+        "description": "Vyberte žiaka, ktorého údaje má táto integrácia sledovať.",
         "data": {
-          "student": "Študent"
+          "student": "Žiak"
         }
       },
       "reconfigure": {
-        "title": "Znova overiť EduPage",
-        "description": "Prihláste sa znova, aby ste obnovili vypršanú reláciu. Ak je povolené 2FA, zadajte potvrdzovací kód z aplikácie EduPage.",
+        "title": "Obnovenie prihlásenia do EduPage",
+        "description": "Prihláste sa znova, aby sa obnovila vypršaná relácia. Ak používate dvojstupňové overenie, zadajte potvrdzovací kód z aplikácie EduPage.",
         "data": {
           "two_factor_code": "Potvrdzovací kód"
         }
       },
       "reconfigure_code": {
-        "title": "Dvojfaktorová autentifikácia",
+        "title": "Dvojstupňové overenie",
         "description": "Zadajte potvrdzovací kód zobrazený v mobilnej aplikácii EduPage.",
         "data": {
           "two_factor_code": "Potvrdzovací kód"
@@ -47,18 +47,19 @@
       }
     },
     "abort": {
-      "already_configured": "Zariadenie už je nakonfigurované",
-      "no_students_found": "Na tomto účte sa nenašli žiadni študenti.",
-      "reconfigured": "Uložená relácia bola úspešne aktualizovaná.",
-      "reconfigure_failed": "Opätovné overenie zlyhalo: {error}",
-      "reauth_unsuccessful": "Opätovné overenie sa nepodarilo: {error}"
+      "already_configured": "Tento účet EduPage je už nakonfigurovaný.",
+      "no_students_found": "V tomto účte sa nenašli žiadni žiaci.",
+      "reconfigured": "Prihlásenie do EduPage bolo úspešne obnovené.",
+      "reconfigure_failed": "Obnovenie prihlásenia zlyhalo: {error}",
+      "reauth_unsuccessful": "Opätovné prihlásenie sa nepodarilo: {error}",
+      "reauth_successful": "Opätovné prihlásenie bolo úspešné."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Vybrať predmety",
-        "description": "Vyberte predmety, pre ktoré sa majú vytvoriť senzory známok. Ostatné senzory EduPage tým nie sú ovplyvnené.",
+        "title": "Výber predmetov",
+        "description": "Vyberte predmety, pre ktoré sa majú vytvoriť senzory známok. Ostatné entity EduPage zostanú bez zmeny.",
         "data": {
           "subject_ids": "Predmety"
         }
@@ -67,11 +68,11 @@
   },
   "device_automation": {
     "trigger_type": {
-      "new_grade": "Bola prijatá nová známka",
-      "new_homework": "Bola prijatá nová domáca úloha",
+      "new_grade": "Bola pridaná nová známka",
+      "new_homework": "Bola zadaná nová domáca úloha",
       "new_message": "Bola prijatá nová správa",
-      "new_exam": "Bola prijatá nová skúška",
-      "timetable_change": "Bola prijatá zmena rozvrhu",
+      "new_exam": "Bola zadaná nová písomka alebo skúšanie",
+      "timetable_change": "Bola zverejnená zmena rozvrhu alebo suplovanie",
       "arrival_at_school": "Bol zaznamenaný príchod do školy"
     }
   }

@@ -256,6 +256,37 @@ def _capability_summary(data: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _runtime_summary(coordinator: Any) -> dict[str, Any]:
+    """Describe coordinator health without exposing exception messages."""
+    data_available = bool(getattr(coordinator, "data", None))
+    update_success = bool(getattr(coordinator, "last_update_success", False))
+    if update_success and data_available:
+        state = "healthy"
+    elif update_success:
+        state = "empty_success"
+    elif data_available:
+        state = "stale_data"
+    else:
+        state = "no_data"
+
+    update_interval = getattr(coordinator, "update_interval", None)
+    last_exception = getattr(coordinator, "last_exception", None)
+    return {
+        "loaded": True,
+        "state": state,
+        "last_update_success": update_success,
+        "update_interval_seconds": (
+            update_interval.total_seconds()
+            if update_interval is not None
+            else None
+        ),
+        "coordinator_data_available": data_available,
+        "last_error_type": (
+            type(last_exception).__name__ if last_exception is not None else None
+        ),
+    }
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
@@ -276,20 +307,7 @@ async def async_get_config_entry_diagnostics(
     if coordinator is None:
         return result
 
-    update_interval = getattr(coordinator, "update_interval", None)
-    result["runtime"].update(
-        {
-            "last_update_success": bool(
-                getattr(coordinator, "last_update_success", False)
-            ),
-            "update_interval_seconds": (
-                update_interval.total_seconds()
-                if update_interval is not None
-                else None
-            ),
-            "coordinator_data_available": bool(getattr(coordinator, "data", None)),
-        }
-    )
+    result["runtime"] = _runtime_summary(coordinator)
     result["capabilities"] = _capability_summary(
         getattr(coordinator, "data", None)
     )

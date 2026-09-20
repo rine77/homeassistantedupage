@@ -18,6 +18,7 @@ from custom_components.homeassistantedupage.const import (
 )
 from custom_components.homeassistantedupage.diagnostics import (
     _capability_summary,
+    _runtime_summary,
     async_get_config_entry_diagnostics,
 )
 
@@ -139,6 +140,31 @@ def test_capability_summary_explains_filtering_assignments_and_grades():
         assert secret not in serialized
 
 
+@pytest.mark.parametrize(
+    ("success", "data", "expected"),
+    [
+        (True, {"student": {}}, "healthy"),
+        (True, {}, "empty_success"),
+        (False, {"student": {}}, "stale_data"),
+        (False, {}, "no_data"),
+    ],
+)
+def test_runtime_summary_distinguishes_coordinator_health(success, data, expected):
+    """Empty successes and retained stale data remain distinguishable."""
+    coordinator = SimpleNamespace(
+        data=data,
+        last_update_success=success,
+        last_exception=RuntimeError("secret server response"),
+        update_interval=timedelta(minutes=30),
+    )
+
+    summary = _runtime_summary(coordinator)
+
+    assert summary["state"] == expected
+    assert summary["last_error_type"] == "RuntimeError"
+    assert "secret server response" not in json.dumps(summary)
+
+
 @pytest.mark.asyncio
 async def test_diagnostics_use_allowlisted_configuration_and_runtime_summary():
     """Config secrets and unknown future fields cannot leak into diagnostics."""
@@ -175,6 +201,7 @@ async def test_diagnostics_use_allowlisted_configuration_and_runtime_summary():
     assert diagnostics["configuration"]["subject_selection"]["selected_count"] == 2
     assert diagnostics["runtime"]["update_interval_seconds"] == 1800
     assert diagnostics["runtime"]["coordinator_data_available"] is True
+    assert diagnostics["runtime"]["state"] == "healthy"
 
 
 @pytest.mark.asyncio

@@ -115,9 +115,12 @@ async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant)
         reauth.assert_not_awaited()
 
         coordinator = hass.data[DOMAIN][entry.entry_id]
+        initial_data = coordinator.data
         await coordinator.async_request_refresh()
 
         reauth.assert_awaited_once()
+        assert coordinator.last_update_success is False
+        assert coordinator.data is initial_data
     finally:
         if coordinator is not None:
             await coordinator.async_shutdown()

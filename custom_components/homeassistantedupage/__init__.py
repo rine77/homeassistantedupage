@@ -11,7 +11,7 @@ from homeassistant.helpers import (
     entity_registry as er,
 )
 import voluptuous as vol
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .homeassistant_edupage import Edupage, EdupageSessionExpired
 from .entity_helpers import student_device_info
@@ -314,7 +314,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     _LOGGER.error(
                         "INIT No matching student found with ID: %s", student_id
                     )
-                    return {"timetable": {}}
+                    raise UpdateFailed("Selected EduPage student was not found")
 
                 student_name = student.name or stored_student_name or str(student.person_id)
 
@@ -325,10 +325,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await entry.async_start_reauth(
                     hass, context={"title_placeholders": {"name": entry.title}}
                 )
-                return {}
-            except Exception as e:  # noqa: BLE001
+                raise UpdateFailed("EduPage session expired") from e
+            except Exception as e:
                 _LOGGER.error("INIT Failed: %s", e)
-                return {}
+                if isinstance(e, UpdateFailed):
+                    raise
+                raise UpdateFailed("EduPage update failed") from e
 
     coordinator = DataUpdateCoordinator(
         hass,

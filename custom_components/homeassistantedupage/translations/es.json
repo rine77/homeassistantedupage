@@ -1,0 +1,79 @@
+{
+  "config": {
+    "flow_title": "Configuración de EduPage",
+    "error": {
+      "cannot_connect": "No se pudo conectar con EduPage.",
+      "invalid_auth": "Credenciales no válidas.",
+      "invalid_code": "El código de confirmación no es válido o ha caducado.",
+      "captcha_required": "EduPage solicita una verificación CAPTCHA. Inténtalo de nuevo más tarde o comprueba tus credenciales."
+    },
+    "step": {
+      "user": {
+        "data": {
+          "password": "Contraseña",
+          "username": "Nombre de usuario",
+          "subdomain": "Subdominio de la escuela"
+        },
+        "description": "Introduce tu nombre de usuario y contraseña de EduPage, así como el subdominio de la escuela.\n\nSi tienes activada la verificación en dos pasos, se te pedirá un código de confirmación de la aplicación EduPage.",
+        "title": "Iniciar sesión en EduPage"
+      },
+      "two_factor": {
+        "title": "Verificación en dos pasos",
+        "description": "Se requiere una confirmación en la aplicación móvil EduPage. Introduce el código de confirmación que aparece allí.",
+        "data": {
+          "two_factor_code": "Código de confirmación"
+        }
+      },
+      "select_student": {
+        "title": "Seleccionar estudiante",
+        "description": "Elige el estudiante cuyos datos debe seguir esta integración.",
+        "data": {
+          "student": "Estudiante"
+        }
+      },
+      "reconfigure": {
+        "title": "Volver a iniciar sesión en EduPage",
+        "description": "Inicia sesión de nuevo para renovar la sesión caducada. Si tienes activada la verificación en dos pasos, introduce el código de confirmación de la aplicación EduPage.",
+        "data": {
+          "two_factor_code": "Código de confirmación"
+        }
+      },
+      "reconfigure_code": {
+        "title": "Verificación en dos pasos",
+        "description": "Introduce el código de confirmación que aparece en la aplicación móvil EduPage.",
+        "data": {
+          "two_factor_code": "Código de confirmación"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Esta cuenta de EduPage ya está configurada.",
+      "no_students_found": "No se encontraron estudiantes en esta cuenta.",
+      "reconfigured": "La sesión guardada se actualizó correctamente.",
+      "reconfigure_failed": "No se pudo volver a iniciar sesión: {error}",
+      "reauth_unsuccessful": "No se pudo completar la reautenticación: {error}",
+      "reauth_successful": "La reautenticación se completó correctamente."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Seleccionar asignaturas",
+        "description": "Selecciona las asignaturas para las que se deben crear sensores de calificaciones. Los demás sensores de EduPage no se verán afectados.",
+        "data": {
+          "subject_ids": "Asignaturas"
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_grade": "Se recibió una nueva calificación",
+      "new_homework": "Se recibió una nueva tarea",
+      "new_message": "Se recibió un nuevo mensaje",
+      "new_exam": "Se recibió un nuevo examen",
+      "timetable_change": "Se recibió un cambio en el horario",
+      "arrival_at_school": "Se registró una llegada a la escuela"
+    }
+  }
+}

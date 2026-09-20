@@ -1,8 +1,14 @@
-[![HACS](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/integration)
-[![Validate with hassfest](https://github.com/rine77/homeassistantedupage/actions/workflows/hassfest.yml/badge.svg)](https://github.com/rine77/homeassistantedupage/actions/workflows/hassfest.yml)
-[![Tests](https://github.com/rine77/homeassistantedupage/actions/workflows/tests.yml/badge.svg)](https://github.com/rine77/homeassistantedupage/actions/workflows/tests.yml)
+<p align="center">
+  <img src="custom_components/homeassistantedupage/brand/icon@2x.png" alt="EduPage for Home Assistant" width="160">
+</p>
 
-# EduPage for Home Assistant
+<h1 align="center">EduPage for Home Assistant</h1>
+
+<p align="center">
+  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Default-orange.svg" alt="HACS"></a>
+  <a href="https://github.com/rine77/homeassistantedupage/actions/workflows/hassfest.yml"><img src="https://github.com/rine77/homeassistantedupage/actions/workflows/hassfest.yml/badge.svg" alt="Validate with hassfest"></a>
+  <a href="https://github.com/rine77/homeassistantedupage/actions/workflows/tests.yml"><img src="https://github.com/rine77/homeassistantedupage/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+</p>
 
 EduPage for Home Assistant is an unofficial custom integration for the [EduPage](https://www.edupage.org/) school information system. It imports school data into Home Assistant so it can be displayed in calendars and dashboards or used in templates, scripts, and automations.
 
@@ -114,6 +120,16 @@ The exact entity IDs are assigned by Home Assistant and may differ from the exam
 Seeing many entities after setup can be expected because EduPage may return every subject offered by the school, including subjects not taken by the selected student and class-like entries. Open **Settings → Devices & services → EduPage → Configure** to select the subjects for which grade sensors should be created. Other EduPage entities are not affected by this selection.
 
 Existing installations continue to expose all returned subjects until a selection is explicitly saved. Selecting no subjects disables all per-subject grade sensors.
+
+### Entity names
+
+Default entity names use the student's initials to remain compact when several
+students are configured. For example, the entities for `Max Example` are named
+`[ME] Mathematics`, `[ME] Homework`, and `[ME] Timetable`.
+
+The underlying unique IDs remain unchanged. Existing entity IDs, dashboard
+references, automations, and names customized by the user are therefore
+preserved when upgrading from an earlier release.
 
 ## Calendars
 
@@ -374,6 +390,12 @@ subject, author, timestamp, deadline, completion state, starred state, and raw
 additional event data. An arrival event only represents a recorded arrival; it
 is not a reliable continuous presence state.
 
+New-grade events additionally expose structured grade information when it is
+available, including the grade, percentage, maximum points, class average,
+title, comment, and teacher. EduPage uses different identifiers for timeline
+events and grades; the integration resolves both direct and nested references
+before attaching these attributes.
+
 There is currently no dedicated EduPage dashboard card. Home Assistant's standard calendar, entity, Markdown, and template cards can be used instead.
 
 ## Substitution and ringing sensors
@@ -466,6 +488,18 @@ An unknown `entry_id` is rejected. This prevents a meal or message action from a
 
 EduPage data is fetched from the cloud approximately every 30 minutes. Timetable and canteen data are requested for the next 14 days. Changes are therefore not necessarily visible immediately.
 
+### Temporary outages and stale data
+
+If EduPage or one of its data endpoints is temporarily unavailable, the
+integration does not replace the last successful coordinator data with an empty
+result. Grade, notification, assignment-summary, substitution, ringing, and
+term-average sensors retain their last known value where possible and expose
+`data_stale: true` until their data source refreshes successfully again.
+
+This prevents a connection problem from appearing as a real value of zero.
+Home Assistant still records the failed coordinator update, so the outage
+remains visible in the integration status and diagnostics.
+
 ## Troubleshooting
 
 ### No entities appear
@@ -501,9 +535,13 @@ The school may not use that EduPage feature, the account may not have permission
 
 Open **Settings → Devices & services → EduPage**, select the relevant config
 entry, open its menu, and choose **Download diagnostics**. The report contains
-only feature availability, update status, event types, and aggregate counts. It
-does not contain account credentials, school or student identifiers, names,
-grades, assignment text, messages, timetable details, or meal descriptions.
+only allowlisted technical information such as runtime health, per-section
+refresh status and counts, exception class names, event types, student-filter
+statistics, grade field coverage, anonymized data paths, and grade-event linkage
+statistics. It does not contain account credentials, school or student
+identifiers, names, grades, assignment text, messages, timetable details, or
+meal descriptions. Exception messages and raw EduPage payloads are not
+included.
 
 Attach the diagnostics file to a bug report when data is missing, student
 filtering behaves unexpectedly, or a feature works for one school but not

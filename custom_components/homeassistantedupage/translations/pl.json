@@ -1,0 +1,79 @@
+{
+  "config": {
+    "flow_title": "Konfiguracja EduPage",
+    "error": {
+      "cannot_connect": "Nie udało się połączyć z EduPage.",
+      "invalid_auth": "Nieprawidłowe dane logowania.",
+      "invalid_code": "Kod potwierdzający jest nieprawidłowy lub wygasł.",
+      "captcha_required": "EduPage wymaga weryfikacji CAPTCHA. Spróbuj ponownie później lub sprawdź dane logowania."
+    },
+    "step": {
+      "user": {
+        "data": {
+          "password": "Hasło",
+          "username": "Nazwa użytkownika",
+          "subdomain": "Subdomena szkoły"
+        },
+        "description": "Podaj nazwę użytkownika i hasło do EduPage oraz subdomenę szkoły.\n\nJeśli korzystasz z weryfikacji dwuetapowej, w następnym kroku podaj kod potwierdzający z aplikacji EduPage.",
+        "title": "Logowanie do EduPage"
+      },
+      "two_factor": {
+        "title": "Weryfikacja dwuetapowa",
+        "description": "Wymagane jest potwierdzenie w aplikacji mobilnej EduPage. Wprowadź wyświetlony tam kod potwierdzający.",
+        "data": {
+          "two_factor_code": "Kod potwierdzający"
+        }
+      },
+      "select_student": {
+        "title": "Wybierz ucznia",
+        "description": "Wybierz ucznia, którego dane ma śledzić ta integracja.",
+        "data": {
+          "student": "Uczeń"
+        }
+      },
+      "reconfigure": {
+        "title": "Ponowne logowanie do EduPage",
+        "description": "Zaloguj się ponownie, aby odnowić wygasłą sesję. Jeśli korzystasz z weryfikacji dwuetapowej, podaj kod potwierdzający z aplikacji EduPage.",
+        "data": {
+          "two_factor_code": "Kod potwierdzający"
+        }
+      },
+      "reconfigure_code": {
+        "title": "Weryfikacja dwuetapowa",
+        "description": "Wprowadź kod potwierdzający wyświetlony w aplikacji mobilnej EduPage.",
+        "data": {
+          "two_factor_code": "Kod potwierdzający"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "To konto EduPage jest już skonfigurowane.",
+      "no_students_found": "Na tym koncie nie znaleziono żadnych uczniów.",
+      "reconfigured": "Zapisana sesja została pomyślnie zaktualizowana.",
+      "reconfigure_failed": "Ponowne logowanie nie powiodło się: {error}",
+      "reauth_unsuccessful": "Ponowne uwierzytelnienie nie powiodło się: {error}",
+      "reauth_successful": "Ponowne uwierzytelnienie zakończyło się pomyślnie."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Wybór przedmiotów",
+        "description": "Wybierz przedmioty, dla których mają zostać utworzone sensory ocen. Nie wpłynie to na pozostałe sensory EduPage.",
+        "data": {
+          "subject_ids": "Przedmioty"
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_grade": "Otrzymano nową ocenę",
+      "new_homework": "Zadano nową pracę domową",
+      "new_message": "Otrzymano nową wiadomość",
+      "new_exam": "Dodano nowy sprawdzian lub egzamin",
+      "timetable_change": "Otrzymano zmianę w planie lekcji",
+      "arrival_at_school": "Zarejestrowano przybycie do szkoły"
+    }
+  }
+}

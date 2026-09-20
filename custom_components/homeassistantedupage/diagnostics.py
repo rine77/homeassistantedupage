@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from datetime import date, datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -21,6 +22,7 @@ from .const import (
     CONF_SUBJECT_IDS,
     DOMAIN,
 )
+from .grade_helpers import grade_reference_ids
 
 DIAGNOSTICS_SCHEMA_VERSION = 1
 
@@ -210,12 +212,34 @@ def _grade_summary(data: dict[str, Any]) -> dict[str, Any]:
         for grade in grades
         if (event_id := getattr(grade, "event_id", None)) is not None
     }
+    grade_events = [
+        item for item in notifications if _event_type(item) == "znamka"
+    ]
     timeline_grade_ids = {
         str(event_id)
-        for item in notifications
-        if _event_type(item) == "znamka"
-        and (event_id := getattr(item, "event_id", None)) is not None
+        for item in grade_events
+        if (event_id := getattr(item, "event_id", None)) is not None
     }
+    embedded_grade_ids = (
+        set().union(*(grade_reference_ids(item) for item in grade_events))
+        if grade_events
+        else set()
+    )
+    direct_matches = grade_event_ids & timeline_grade_ids
+    embedded_matches = grade_event_ids & embedded_grade_ids
+    matched_events = sum(
+        bool(
+            grade_event_ids
+            & (
+                grade_reference_ids(item)
+                | {
+                    str(item.event_id)
+                }
+            )
+        )
+        for item in grade_events
+    )
+    linkage = _grade_linkage_diagnostics(grades, notifications)
     return {
         "count": _safe_len(grades),
         "field_coverage": {
@@ -223,9 +247,169 @@ def _grade_summary(data: dict[str, Any]) -> dict[str, Any]:
             for label, attribute in _GRADE_FIELDS.items()
         },
         "timeline_grade_events": _safe_len(timeline_grade_ids),
-        "matched_to_timeline_event": _safe_len(grade_event_ids & timeline_grade_ids),
-        "unmatched_timeline_events": _safe_len(timeline_grade_ids - grade_event_ids),
+        "matched_to_timeline_event": matched_events,
+        "unmatched_timeline_events": _safe_len(grade_events) - matched_events,
+        "direct_event_id_matches": _safe_len(direct_matches),
+        "embedded_event_id_matches": _safe_len(embedded_matches),
+        "linkage_diagnostics": linkage,
     }
+
+
+def _normalized_scalar(value: Any) -> str | None:
+    """Normalize an identifier-like scalar without exporting the value."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (str, int, float)):
+        return str(value).strip()
+    return None
+
+
+def _date_value(value: Any) -> date | None:
+    """Return a date from a date, datetime, or ISO-like value."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value).strip()[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _grade_linkage_diagnostics(
+    grades: list[Any], notifications: list[Any]
+) -> dict[str, Any]:
+    """Describe safe linkage signals without exposing IDs or grade content."""
+    grade_events = [item for item in notifications if _event_type(item) == "znamka"]
+    grade_ids = {
+        value
+        for grade in grades
+        if (value := _normalized_scalar(getattr(grade, "event_id", None)))
+    }
+    subject_ids = {
+        value
+        for grade in grades
+        if (value := _normalized_scalar(getattr(grade, "subject_id", None)))
+    }
+    schema: dict[str, Counter[str]] = {}
+    grade_reference_paths = Counter()
+    subject_reference_paths = Counter()
+    traversal = {"nodes": 0, "dynamic_keys": 0, "truncated": False}
+
+    for event in grade_events:
+        additional_data = getattr(event, "additional_data", None) or {}
+        _inspect_structure(
+            additional_data,
+            "$",
+            grade_ids,
+            subject_ids,
+            schema,
+            grade_reference_paths,
+            subject_reference_paths,
+            traversal,
+        )
+
+    same_day_pairs = 0
+    same_subject_pairs = 0
+    same_title_pairs = 0
+    for grade in grades:
+        grade_day = _date_value(getattr(grade, "date", None))
+        grade_subject = _normalized_scalar(getattr(grade, "subject_id", None))
+        grade_title = str(getattr(grade, "title", None) or "").strip().casefold()
+        for event in grade_events:
+            event_day = _date_value(getattr(event, "timestamp", None))
+            additional_data = getattr(event, "additional_data", None) or {}
+            event_subject = (
+                _normalized_scalar(additional_data.get("predmetid"))
+                if isinstance(additional_data, dict)
+                else None
+            )
+            event_text = str(getattr(event, "text", None) or "").strip().casefold()
+            same_day_pairs += grade_day is not None and grade_day == event_day
+            same_subject_pairs += (
+                grade_subject is not None and grade_subject == event_subject
+            )
+            same_title_pairs += bool(grade_title and grade_title == event_text)
+
+    return {
+        "additional_data_schema": {
+            key: dict(sorted(types.items()))
+            for key, types in sorted(schema.items())
+        },
+        "grade_id_reference_paths": dict(sorted(grade_reference_paths.items())),
+        "subject_id_reference_paths": dict(
+            sorted(subject_reference_paths.items())
+        ),
+        "dynamic_key_count": traversal["dynamic_keys"],
+        "traversal_truncated": traversal["truncated"],
+        "same_day_pairs": same_day_pairs,
+        "same_subject_pairs": same_subject_pairs,
+        "same_title_pairs": same_title_pairs,
+    }
+
+
+def _safe_schema_key(value: Any) -> tuple[str, bool]:
+    """Return a structural key or an anonymous marker for dynamic keys."""
+    key = str(value)
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", key):
+        return key, False
+    return "<dynamic_key>", True
+
+
+def _inspect_structure(
+    value: Any,
+    path: str,
+    grade_ids: set[str],
+    subject_ids: set[str],
+    schema: dict[str, Counter[str]],
+    grade_reference_paths: Counter[str],
+    subject_reference_paths: Counter[str],
+    traversal: dict[str, Any],
+    depth: int = 0,
+) -> None:
+    """Inspect bounded JSON structure while retaining no scalar values."""
+    if traversal["nodes"] >= 500 or depth > 6:
+        traversal["truncated"] = True
+        return
+    traversal["nodes"] += 1
+    schema.setdefault(path, Counter())[type(value).__name__] += 1
+
+    normalized = _normalized_scalar(value)
+    if normalized in grade_ids:
+        grade_reference_paths[path] += 1
+    if normalized in subject_ids:
+        subject_reference_paths[path] += 1
+
+    if isinstance(value, dict):
+        for raw_key, item in value.items():
+            key, dynamic = _safe_schema_key(raw_key)
+            traversal["dynamic_keys"] += dynamic
+            _inspect_structure(
+                item,
+                f"{path}.{key}",
+                grade_ids,
+                subject_ids,
+                schema,
+                grade_reference_paths,
+                subject_reference_paths,
+                traversal,
+                depth + 1,
+            )
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _inspect_structure(
+                item,
+                f"{path}[]",
+                grade_ids,
+                subject_ids,
+                schema,
+                grade_reference_paths,
+                subject_reference_paths,
+                traversal,
+                depth + 1,
+            )
 
 
 def _capability_summary(data: dict[str, Any] | None) -> dict[str, Any]:
@@ -271,6 +455,7 @@ def _runtime_summary(coordinator: Any) -> dict[str, Any]:
 
     update_interval = getattr(coordinator, "update_interval", None)
     last_exception = getattr(coordinator, "last_exception", None)
+    error_types = _exception_type_chain(last_exception)
     return {
         "loaded": True,
         "state": state,
@@ -284,7 +469,20 @@ def _runtime_summary(coordinator: Any) -> dict[str, Any]:
         "last_error_type": (
             type(last_exception).__name__ if last_exception is not None else None
         ),
+        "error_types": error_types,
     }
+
+
+def _exception_type_chain(exception: BaseException | None) -> list[str]:
+    """Return bounded exception class names without messages or arguments."""
+    result = []
+    seen = set()
+    current = exception
+    while current is not None and id(current) not in seen and len(result) < 5:
+        seen.add(id(current))
+        result.append(type(current).__name__)
+        current = current.__cause__ or current.__context__
+    return result
 
 
 async def async_get_config_entry_diagnostics(

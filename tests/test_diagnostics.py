@@ -18,6 +18,7 @@ from custom_components.homeassistantedupage.const import (
 )
 from custom_components.homeassistantedupage.diagnostics import (
     _capability_summary,
+    _exception_type_chain,
     _runtime_summary,
     async_get_config_entry_diagnostics,
 )
@@ -51,12 +52,29 @@ def test_capability_summary_explains_filtering_assignments_and_grades():
                 title="Secret test",
                 comment=None,
                 teacher=SimpleNamespace(name="Private Teacher"),
+                date=datetime.combine(today, datetime.min.time()),
+                subject_id=7,
             ),
-            SimpleNamespace(event_id=99, grade_n="2"),
+            SimpleNamespace(
+                event_id=99,
+                grade_n="2",
+                date=datetime.combine(today, datetime.min.time()),
+                subject_id=8,
+            ),
         ],
         "subjects": [object(), object()],
         "notifications": [
-            _event("znamka", 10, recipient="Private Student"),
+            _event(
+                "znamka",
+                900,
+                recipient="Private Student",
+                timestamp=datetime.combine(today, datetime.min.time()),
+                text="Secret test",
+                additional_data={
+                    "-19": [{"udalostid": "10", "predmetid": "7"}],
+                    "date": today.isoformat(),
+                },
+            ),
             _event(
                 "homework",
                 11,
@@ -120,6 +138,29 @@ def test_capability_summary_explains_filtering_assignments_and_grades():
     assert summary["grades"]["field_coverage"]["comment"] == 0
     assert summary["grades"]["matched_to_timeline_event"] == 1
     assert summary["grades"]["unmatched_timeline_events"] == 0
+    assert summary["grades"]["direct_event_id_matches"] == 0
+    assert summary["grades"]["embedded_event_id_matches"] == 1
+    assert summary["grades"]["linkage_diagnostics"] == {
+        "additional_data_schema": {
+            "$": {"dict": 1},
+            "$.<dynamic_key>": {"list": 1},
+            "$.<dynamic_key>[]": {"dict": 1},
+            "$.<dynamic_key>[].predmetid": {"str": 1},
+            "$.<dynamic_key>[].udalostid": {"str": 1},
+            "$.date": {"str": 1},
+        },
+        "grade_id_reference_paths": {
+            "$.<dynamic_key>[].udalostid": 1,
+        },
+        "subject_id_reference_paths": {
+            "$.<dynamic_key>[].predmetid": 1,
+        },
+        "dynamic_key_count": 1,
+        "traversal_truncated": False,
+        "same_day_pairs": 2,
+        "same_subject_pairs": 0,
+        "same_title_pairs": 1,
+    }
     assert summary["sections"]["grades_per_term"] == {
         "success": False,
         "items": 1,
@@ -136,6 +177,7 @@ def test_capability_summary_explains_filtering_assignments_and_grades():
         "Secret homework",
         "Private Teacher",
         "95",
+        "-19",
     ):
         assert secret not in serialized
 
@@ -162,7 +204,28 @@ def test_runtime_summary_distinguishes_coordinator_health(success, data, expecte
 
     assert summary["state"] == expected
     assert summary["last_error_type"] == "RuntimeError"
+    assert summary["error_types"] == ["RuntimeError"]
     assert "secret server response" not in json.dumps(summary)
+
+
+def test_exception_type_chain_is_bounded_and_excludes_messages():
+    """Only harmless class names from a chained update failure are exported."""
+    root = TimeoutError("private school endpoint timed out")
+    try:
+        try:
+            raise root
+        except TimeoutError as err:
+            raise ValueError("private parser response") from err
+    except ValueError as err:
+        wrapped = RuntimeError("private coordinator response")
+        wrapped.__cause__ = err
+
+    result = _exception_type_chain(wrapped)
+
+    assert result == ["RuntimeError", "ValueError", "TimeoutError"]
+    serialized = json.dumps(result)
+    assert "private" not in serialized
+    assert "endpoint" not in serialized
 
 
 @pytest.mark.asyncio

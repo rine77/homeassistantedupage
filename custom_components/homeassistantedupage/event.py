@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .assignment_helpers import event_recipient
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
 from .entity_helpers import student_device_info
+from .grade_helpers import matching_grade
 
 EVENT_NEW_GRADE = "new_grade"
 EVENT_NEW_HOMEWORK = "new_homework"
@@ -134,23 +135,18 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
                 return getattr(subject, "name", None)
         return None
 
-    def _grade_for_event(self, event_id: Any) -> Any | None:
-        """Return the grade carrying the same EduPage event ID."""
-        if event_id is None or not self.coordinator.data:
+    def _grade_for_event(self, event: Any) -> Any | None:
+        """Return the grade referenced by an EduPage timeline event."""
+        if event is None or not self.coordinator.data:
             return None
-
-        return next(
-            (
-                grade
-                for grade in self.coordinator.data.get("grades", []) or []
-                if str(getattr(grade, "event_id", "")) == str(event_id)
-            ),
-            None,
+        return matching_grade(
+            event,
+            self.coordinator.data.get("grades", []) or [],
         )
 
-    def _grade_attributes(self, event_id: Any) -> dict[str, Any]:
+    def _grade_attributes(self, event: Any) -> dict[str, Any]:
         """Return structured attributes for a grade timeline event."""
-        grade = self._grade_for_event(event_id)
+        grade = self._grade_for_event(event)
         if grade is None:
             return {}
 
@@ -195,7 +191,7 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
         if raw_type == "znamka":
             grade_attributes = {
                 key: value
-                for key, value in self._grade_attributes(event_id).items()
+                for key, value in self._grade_attributes(event).items()
                 if value is not None
             }
             for key in ("subject", "subject_id"):

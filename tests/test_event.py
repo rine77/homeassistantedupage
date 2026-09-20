@@ -140,7 +140,7 @@ def test_event_attributes_are_structured_and_serializable(coordinator):
 
 
 def test_grade_event_attributes_are_enriched_from_matching_grade(coordinator):
-    """Grade events expose structured data without parsing localized text."""
+    """Nested school-event IDs enrich grades without parsing localized text."""
     coordinator.data["grades"] = [
         SimpleNamespace(
             event_id="21",
@@ -157,9 +157,10 @@ def test_grade_event_attributes_are_enriched_from_matching_grade(coordinator):
     ]
     entity = _entity(coordinator)
     event = _event(
-        21,
+        900,
         "znamka",
         text="Známka - Slovenský jazyk a literatúra: 10/10",
+        additional_data={"-19": [{"udalostid": "21"}]},
     )
 
     attributes = entity._event_attributes(event, "znamka")
@@ -173,6 +174,18 @@ def test_grade_event_attributes_are_enriched_from_matching_grade(coordinator):
     assert attributes["title"] == "Written exercise"
     assert attributes["comment"] == "Well done"
     assert attributes["teacher"] == "Mrs Teacher"
+
+
+def test_grade_event_direct_id_match_remains_supported(coordinator):
+    """Timeline IDs remain a fallback for compatible EduPage variants."""
+    coordinator.data["grades"] = [
+        SimpleNamespace(event_id=24, grade_n="1")
+    ]
+    entity = _entity(coordinator)
+
+    attributes = entity._event_attributes(_event(24, "znamka"), "znamka")
+
+    assert attributes["grade"] == "1"
 
 
 def test_grade_event_without_matching_grade_keeps_existing_attributes(coordinator):

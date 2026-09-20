@@ -1,6 +1,6 @@
 {
     "domain": "homeassistantedupage",
-    "name": "homeassistantedupage",
+    "name": "EduPage",
     "codeowners": ["@rine77"],
     "config_flow": true,
     "dependencies": [],

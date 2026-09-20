@@ -2,8 +2,27 @@
 
 from custom_components.homeassistantedupage.const import DOMAIN
 from custom_components.homeassistantedupage.entity_helpers import (
+    compact_entity_name,
+    student_initials,
     student_device_info,
 )
+
+
+def test_student_initials_use_each_name_part():
+    """Initials distinguish students without repeating their full names."""
+    assert student_initials("Max Maria Example") == "MME"
+    assert student_initials("  Max   Example  ") == "ME"
+
+
+def test_student_initials_handle_missing_name():
+    """Missing names still produce a usable entity name."""
+    assert student_initials(None) == "?"
+    assert student_initials("") == "?"
+
+
+def test_compact_entity_name_combines_initials_and_label():
+    """Compact names consistently identify both student and entity purpose."""
+    assert compact_entity_name("Max Example", "Homework") == "[ME] Homework"
 
 
 def test_student_device_info_uses_stable_identifier():

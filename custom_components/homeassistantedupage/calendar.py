@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .assignment_helpers import event_matches_student
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
-from .entity_helpers import student_device_info
+from .entity_helpers import compact_entity_name, student_device_info
 from .event import _event_type_value
 from zoneinfo import ZoneInfo
 from edupage_api.timetables import Lesson
@@ -48,12 +48,12 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         super().__init__(coordinator)
         self._data = data
         self._events = []
-        self._attr_name = "Edupage Calendar"
         student = coordinator.data.get("student", {}) if coordinator.data else {}
         self._student_id = student.get("id", data.get(CONF_STUDENT_ID, "unknown"))
         self._student_name = student.get("name") or data.get(
             CONF_STUDENT_NAME, "Unknown Student"
         )
+        self._attr_name = compact_entity_name(self._student_name, "Timetable")
         self._attr_device_info = student_device_info(
             self._student_id, self._student_name
         )
@@ -66,7 +66,7 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
     @property
     def name(self):
         """Return the name of the calendar."""
-        return f"Edupage - {self._student_name}"
+        return self._attr_name
 
     @property
     def available(self) -> bool:
@@ -189,12 +189,12 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
         super().__init__(coordinator)
         self._data = data
         self._events = []
-        self._attr_name = "Edupage Canteen Calendar"
         student = coordinator.data.get("student", {}) if coordinator.data else {}
         self._student_id = student.get("id", data.get(CONF_STUDENT_ID, "unknown"))
         self._student_name = student.get("name") or data.get(
             CONF_STUDENT_NAME, "Unknown Student"
         )
+        self._attr_name = compact_entity_name(self._student_name, "Canteen")
         self._attr_device_info = student_device_info(
             self._student_id, self._student_name
         )
@@ -207,7 +207,7 @@ class EdupageCanteenCalendar(CoordinatorEntity, CalendarEntity):
     @property
     def name(self):
         """Return the name of the calendar."""
-        return f"Edupage Canteen - {self._student_name}"
+        return self._attr_name
 
     @property
     def available(self) -> bool:
@@ -357,7 +357,9 @@ class EduPageAssignmentsCalendar(CoordinatorEntity, CalendarEntity):
             CONF_STUDENT_NAME, "Unknown Student"
         )
         self._student_class_names = student.get("class_names", [])
-        self._attr_name = f"EduPage - Assignments {self._student_name}"
+        self._attr_name = compact_entity_name(
+            self._student_name, "Assignments and exams"
+        )
         self._attr_unique_id = f"edupage_assignments_{self._student_id}"
         self._attr_device_info = student_device_info(
             self._student_id, self._student_name

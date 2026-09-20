@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .assignment_helpers import event_matches_student
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
-from .entity_helpers import student_device_info
+from .entity_helpers import compact_entity_name, student_device_info
 from .event import _event_type_value
 
 _HOMEWORK_EVENT_TYPE = "homework"
@@ -61,7 +61,7 @@ class EduPageHomeworkTodoEntity(CoordinatorEntity, TodoListEntity):
         self._student_name = student_name or str(student_id)
         student = coordinator.data.get("student", {}) if coordinator.data else {}
         self._student_class_names = student.get("class_names", [])
-        self._attr_name = f"EduPage - Homework {self._student_name}"
+        self._attr_name = compact_entity_name(self._student_name, "Homework")
         self._attr_unique_id = f"edupage_homework_{self._student_id}"
         self._attr_device_info = student_device_info(
             self._student_id, self._student_name

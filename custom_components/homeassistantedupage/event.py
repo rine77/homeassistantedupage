@@ -14,7 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .assignment_helpers import event_recipient
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
-from .entity_helpers import student_device_info
+from .entity_helpers import compact_entity_name, student_device_info
 from .grade_helpers import matching_grade
 
 EVENT_NEW_GRADE = "new_grade"
@@ -98,7 +98,7 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
         super().__init__(coordinator)
         self._student_id = student_id
         self._student_name = student_name or str(student_id)
-        self._attr_name = f"EduPage - Events {self._student_name}"
+        self._attr_name = compact_entity_name(self._student_name, "Events")
         self._attr_unique_id = f"edupage_events_{self._student_id}"
         self._attr_device_info = student_device_info(
             self._student_id, self._student_name

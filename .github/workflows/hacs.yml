@@ -1,16 +1,24 @@
 name: HACS Action
 
 on:
-  workflow_dispatch:
-  push:
   pull_request:
-  schedule:
-    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   hacs:
     name: HACS Action
     runs-on: "ubuntu-latest"
+    timeout-minutes: 10
     steps:
       - name: HACS Action
         uses: "hacs/action@main"

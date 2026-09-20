@@ -34,6 +34,8 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 - Interactive reauthentication when a stored session expires
 - English, German, Polish, Slovak, and Spanish translations
 - Restoration of the last known sensor states after Home Assistant restarts or temporary EduPage outages
+- Privacy-safe diagnostics for troubleshooting account capabilities, partial
+  data failures, student filtering, assignments, and grade metadata
 
 ## Installation
 
@@ -495,12 +497,26 @@ The school may expose the subject without publishing grades for it. The sensor w
 
 The school may not use that EduPage feature, the account may not have permission to access it, or no relevant data may currently be available.
 
+### Downloading diagnostics
+
+Open **Settings → Devices & services → EduPage**, select the relevant config
+entry, open its menu, and choose **Download diagnostics**. The report contains
+only feature availability, update status, event types, and aggregate counts. It
+does not contain account credentials, school or student identifiers, names,
+grades, assignment text, messages, timetable details, or meal descriptions.
+
+Attach the diagnostics file to a bug report when data is missing, student
+filtering behaves unexpectedly, or a feature works for one school but not
+another.
+
 ## Privacy and security
 
 - Protect the Home Assistant configuration directory and its backups.
 - Treat the stored PHP session ID like a password.
 - Do not publish usernames, passwords, session IDs, student names, grades, timetable details, or message contents.
 - Sanitize debug logs before attaching them to a public issue. Debug logs may contain personal school data.
+- Integration diagnostics are deliberately allowlisted and contain aggregate
+  capability information only. Review any file before sharing it publicly.
 
 Version 0.4.0 and later do not persist the password for newly configured or reauthenticated entries. Entries created by older releases may still contain a previously stored password until they are reauthenticated or recreated.
 
@@ -512,6 +528,7 @@ Before opening an issue:
 2. Restart Home Assistant.
 3. Check the Home Assistant logs.
 4. Search the [existing issues](https://github.com/rine77/homeassistantedupage/issues).
+5. Download the privacy-safe diagnostics for the affected config entry.
 
 When creating an issue, include:
 

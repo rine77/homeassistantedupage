@@ -40,7 +40,7 @@ def event_matches_student(
 ) -> bool:
     """Return whether an assignment event belongs to the selected student.
 
-    EduPage 0.12.5 normally exposes the raw ``user_meno`` value as a string in
+    EduPage normally exposes the raw ``user_meno`` value as a string in
     ``TimelineEvent.recipient``. Support an account object as well so a future
     API version can provide a stable person ID without another integration
     change. Class and teaching-group recipients are matched through the

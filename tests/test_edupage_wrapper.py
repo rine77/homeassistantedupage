@@ -12,6 +12,7 @@ homeassistantedupage#70 / #95:
 from unittest.mock import MagicMock, patch
 
 import pytest
+from edupage_api.exceptions import InsufficientPermissionsException
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from custom_components.homeassistantedupage.homeassistant_edupage import (
     Edupage,
@@ -102,6 +103,54 @@ async def test_get_meals_raises_update_failed_on_unexpected_error():
 
     with pytest.raises(UpdateFailed, match="connection failed"):
         await _wrapper(api).get_meals("2026-09-04")
+
+
+async def test_get_timetable_uses_direct_result_when_permitted():
+    """A working direct timetable request must not switch account context."""
+    api = MagicMock()
+    student = MagicMock()
+    api.get_timetable.return_value = ["lesson"]
+
+    result = await _wrapper(api).get_timetable(student, "2026-09-24")
+
+    assert result == ["lesson"]
+    api.get_timetable.assert_called_once_with(student, "2026-09-24")
+    api.switch_to_child.assert_not_called()
+    api.get_my_timetable.assert_not_called()
+    api.switch_to_parent.assert_not_called()
+
+
+async def test_get_timetable_retries_in_selected_child_context():
+    """A permission rejection falls back to the parent child-switch flow."""
+    api = MagicMock()
+    student = MagicMock()
+    api.get_timetable.side_effect = InsufficientPermissionsException(
+        "Missing permissions"
+    )
+    api.get_my_timetable.return_value = ["child lesson"]
+
+    result = await _wrapper(api).get_timetable(student, "2026-09-24")
+
+    assert result == ["child lesson"]
+    api.switch_to_child.assert_called_once_with(student)
+    api.get_my_timetable.assert_called_once_with("2026-09-24")
+    api.switch_to_parent.assert_called_once_with()
+
+
+async def test_get_timetable_restores_parent_context_when_fallback_fails():
+    """The parent context is restored even if the child request fails."""
+    api = MagicMock()
+    student = MagicMock()
+    api.get_timetable.side_effect = InsufficientPermissionsException(
+        "Missing permissions"
+    )
+    api.get_my_timetable.side_effect = RuntimeError("child request failed")
+
+    with pytest.raises(UpdateFailed, match="child request failed"):
+        await _wrapper(api).get_timetable(student, "2026-09-24")
+
+    api.switch_to_child.assert_called_once_with(student)
+    api.switch_to_parent.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------

@@ -71,3 +71,16 @@ def test_keeps_group_recipient_when_class_metadata_is_unavailable():
     assert event_matches_student(
         SimpleNamespace(recipient="4b · Musik"), 42, "Nina Lange"
     )
+    assert event_matches_student(
+        SimpleNamespace(recipient="V. A · Matematika"), 42, "Nina Lange"
+    )
+    assert event_matches_student(
+        SimpleNamespace(recipient="V. A · Český jazyk a literatura"),
+        42,
+        "Nina Lange",
+    )
+    assert event_matches_student(
+        SimpleNamespace(recipient="V. A - Aj Kno · Anglický jazyk"),
+        42,
+        "Nina Lange",
+    )

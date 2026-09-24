@@ -32,6 +32,16 @@ def _contains_class_name(recipient: str, class_name: str) -> bool:
     )
 
 
+def _contains_group_separator(value: Any) -> bool:
+    """Return whether a raw recipient contains a known group separator.
+
+    Check this before transliteration because ``unidecode`` converts the
+    middle dot used by some EduPage schools to an asterisk.
+    """
+    recipient = " ".join(str(value).split())
+    return " · " in recipient or " - " in recipient
+
+
 def event_matches_student(
     event: Any,
     student_id: Any,
@@ -86,7 +96,6 @@ def event_matches_student(
     # a potentially valid assignment. The list may remain mixed for that poll,
     # but no homework disappears because an optional lookup failed.
     return not normalized_classes and bool(
-        " · " in normalized_recipient
-        or " - " in normalized_recipient
+        _contains_group_separator(recipient_name)
         or re.match(r"^\d{1,2}\s*[a-z]?(?:\b|$)", normalized_recipient)
     )

@@ -304,6 +304,20 @@ async def test_collect_data_resolves_student_class_names():
     }
 
 
+async def test_collect_data_matches_signed_variant_of_student_class_id():
+    """Class endpoints may expose the student's numeric class ID as negative."""
+    edupage = _edupage_with_grades_failing()
+    edupage.get_classes = AsyncMock(
+        return_value=[
+            SimpleNamespace(class_id=-7, short="V. A", name="5. A")
+        ]
+    )
+
+    data = await _collect_data(edupage, _StudentWithClass(), "Max")
+
+    assert data["student"]["class_names"] == ["V. A", "5. A"]
+
+
 async def test_collect_data_continues_when_get_subjects_fails():
     edupage = _edupage_with_grades_failing()
     edupage.get_grades = AsyncMock(return_value=[])

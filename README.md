@@ -8,6 +8,7 @@
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Default-orange.svg" alt="HACS"></a>
   <a href="https://github.com/rine77/homeassistantedupage/actions/workflows/hassfest.yml"><img src="https://github.com/rine77/homeassistantedupage/actions/workflows/hassfest.yml/badge.svg" alt="Validate with hassfest"></a>
   <a href="https://github.com/rine77/homeassistantedupage/actions/workflows/tests.yml"><img src="https://github.com/rine77/homeassistantedupage/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <a href="https://www.buymeacoffee.com/rine77><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-yellow?logo=buymeacoffee&logoColor=black" alt="Support"></a>
 </p>
 
 EduPage for Home Assistant is an unofficial custom integration for the [EduPage](https://www.edupage.org/) school information system. It imports school data into Home Assistant so it can be displayed in calendars and dashboards or used in templates, scripts, and automations.

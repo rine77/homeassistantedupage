@@ -583,6 +583,12 @@ Never post credentials, PHP session IDs, or personally identifiable school data.
 
 Bug reports, documentation improvements, translations, and pull requests are welcome. Please keep pull requests focused on one topic and include tests for behavior changes where possible.
 
+## Support
+
+If you find this integration useful and would like to support its development:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-yellow?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/rine77)
+
 ## Credits
 
 Thanks to everyone who has contributed code, testing, translations, reports, and feedback, and to the maintainers of [edupage-api](https://github.com/EdupageAPI/edupage-api).

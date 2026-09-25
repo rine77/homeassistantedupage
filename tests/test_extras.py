@@ -137,7 +137,7 @@ async def test_resolve_recipients_raises_on_unknown():
 
 async def test_send_message_passes_recipient_ids_not_objects():
     """send_message must hand the API resolved recipient ID strings, not the
-    account objects (edupage-api 0.12.5 rejects EduStudent/EduTeacher subclasses
+    account objects (edupage-api rejects EduStudent/EduTeacher subclasses
     via an exact EduAccount type check)."""
     api = MagicMock()
     student = _Account(1, "Alice", get_id="Student123")

@@ -1,6 +1,6 @@
 """Modern app-code two-factor authentication for EduPage.
 
-The installed `edupage-api==0.12.5` library implements the *old* two-factor
+The installed `edupage-api==0.12.6` library implements the *old* two-factor
 flow: it parses the hidden `<input value="...">` fields (`csrfauth`, `au`,
 `gu`) from the 2FA page HTML (`Login._extract_two_factor_fields`). Schools that
 rolled out the newer React login page no longer render those hidden inputs —

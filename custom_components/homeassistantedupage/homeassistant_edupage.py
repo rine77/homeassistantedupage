@@ -2,7 +2,10 @@ import logging
 
 from edupage_api import Edupage as APIEdupage
 from edupage_api import Login
-from edupage_api.exceptions import BadCredentialsException
+from edupage_api.exceptions import (
+    BadCredentialsException,
+    InsufficientPermissionsException,
+)
 
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -150,10 +153,26 @@ class Edupage:
                 f"EDUPAGE error updating get_teachers data from API: {e}"
             )
 
+    def _get_timetable(self, edu_student, day):
+        """Get a timetable, falling back to the parent child-switch flow."""
+        try:
+            return self.api.get_timetable(edu_student, day)
+        except InsufficientPermissionsException:
+            _LOGGER.debug(
+                "EDUPAGE direct timetable access was rejected for %s; "
+                "retrying in the selected child context",
+                day,
+            )
+            self.api.switch_to_child(edu_student)
+            try:
+                return self.api.get_my_timetable(day)
+            finally:
+                self.api.switch_to_parent()
+
     async def get_timetable(self, edu_student, day):
         try:
             timetable = await self.hass.async_add_executor_job(
-                self.api.get_timetable, edu_student, day
+                self._get_timetable, edu_student, day
             )
             if timetable is None:
                 _LOGGER.debug("EDUPAGE timetable is None for %s", day)
@@ -315,7 +334,7 @@ class Edupage:
     async def send_message(self, recipients, body: str):
         try:
             accounts = await self.resolve_recipients(recipients)
-            # edupage-api 0.12.5 sends the first ``selectedUser`` using the exact
+            # edupage-api sends the first ``selectedUser`` using the exact
             # ``EduAccount`` type check; student/teacher subclasses are not
             # accepted and would be string-joined, so we pass the resolved
             # recipient IDs (e.g. ``s123``/``u456``) instead of the objects.

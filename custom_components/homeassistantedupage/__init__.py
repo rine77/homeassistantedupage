@@ -33,6 +33,18 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
 
 
+def _class_ids_match(first, second) -> bool:
+    """Return whether two EduPage class IDs identify the same class.
+
+    Some endpoints expose the same numeric class ID with a different sign.
+    Preserve exact comparison for non-numeric identifiers.
+    """
+    try:
+        return abs(int(first)) == abs(int(second))
+    except (TypeError, ValueError):
+        return str(first) == str(second)
+
+
 async def _collect_data(edupage, student, student_name):
     """Gather all EduPage data sections for a student.
 
@@ -56,7 +68,9 @@ async def _collect_data(edupage, student, student_name):
                 (
                     item
                     for item in classes or []
-                    if str(getattr(item, "class_id", "")) == str(class_id)
+                    if _class_ids_match(
+                        getattr(item, "class_id", None), class_id
+                    )
                 ),
                 None,
             )

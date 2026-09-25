@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from homeassistant.util import dt as dt_util
 
 import pytest
 from homeassistant.const import CONF_USERNAME
@@ -34,7 +35,7 @@ def _event(event_type, event_id, **kwargs):
 
 def test_capability_summary_explains_filtering_assignments_and_grades():
     """Diagnostics expose processing counts, never the underlying content."""
-    today = datetime.now(UTC).date()
+    today = dt_util.now().date()
     data = {
         "student": {
             "id": "student-123",

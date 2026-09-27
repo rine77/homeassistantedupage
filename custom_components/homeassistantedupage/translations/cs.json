@@ -1,0 +1,79 @@
+{
+  "config": {
+    "flow_title": "Nastavení EduPage",
+    "error": {
+      "cannot_connect": "Připojení se nezdařilo",
+      "invalid_auth": "Neplatné přihlašovací údaje",
+      "invalid_code": "Potvrzovací kód je neplatný nebo jeho platnost vypršela.",
+      "captcha_required": "EduPage vyžaduje ověření CAPTCHA. Zkuste to později nebo zkontrolujte své přihlašovací údaje."
+    },
+    "step": {
+      "user": {
+        "data": {
+          "password": "Heslo",
+          "username": "Uživatelské jméno",
+          "subdomain": "Subdoména"
+        },
+        "description": "Zadejte uživatelské jméno a heslo k účtu EduPage a subdoménu školy.\n\nPokud máte zapnuté dvoufaktorové ověřování, budete vyzváni k zadání potvrzovacího kódu z aplikace EduPage.",
+        "title": "Přihlášení k účtu EduPage"
+      },
+      "two_factor": {
+        "title": "Dvoufaktorové ověření",
+        "description": "Je vyžadováno potvrzení v mobilní aplikaci EduPage. Zadejte potvrzovací kód zobrazený v aplikaci.",
+        "data": {
+          "two_factor_code": "Potvrzovací kód"
+        }
+      },
+      "select_student": {
+        "title": "Výběr žáka",
+        "description": "Vyberte žáka, jehož údaje má integrace načítat.",
+        "data": {
+          "student": "Žák"
+        }
+      },
+      "reconfigure": {
+        "title": "Opětovné přihlášení k EduPage",
+        "description": "Platnost přihlášení vypršela. Přihlaste se znovu. Pokud máte zapnuté dvoufaktorové ověřování, zadejte potvrzovací kód z aplikace EduPage.",
+        "data": {
+          "two_factor_code": "Potvrzovací kód"
+        }
+      },
+      "reconfigure_code": {
+        "title": "Dvoufaktorové ověření",
+        "description": "Zadejte potvrzovací kód zobrazený v mobilní aplikaci EduPage.",
+        "data": {
+          "two_factor_code": "Potvrzovací kód"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Zařízení je již nakonfigurováno",
+      "no_students_found": "V tomto účtu nebyli nalezeni žádní žáci.",
+      "reconfigured": "Uložené přihlášení bylo úspěšně aktualizováno.",
+      "reconfigure_failed": "Opětovné ověření se nezdařilo: {error}",
+      "reauth_unsuccessful": "Opětovné ověření se nezdařilo: {error}",
+      "reauth_successful": "Opětovné ověření proběhlo úspěšně."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Výběr předmětů",
+        "description": "Vyberte předměty, pro které se mají vytvořit senzory známek. Ostatní senzory EduPage tím nebudou ovlivněny.",
+        "data": {
+          "subject_ids": "Předměty"
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_grade": "Byla přidána nová známka",
+      "new_homework": "Byl zadán nový domácí úkol",
+      "new_message": "Byla přijata nová zpráva",
+      "new_exam": "Byla oznámena nová písemka nebo zkoušení",
+      "timetable_change": "Byla oznámena změna rozvrhu",
+      "arrival_at_school": "Byl zaznamenán příchod do školy"
+    }
+  }
+}

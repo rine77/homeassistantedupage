@@ -119,6 +119,9 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         start_time = datetime.combine(day, lesson.start_time).astimezone(local_tz)
         end_time = datetime.combine(day, lesson.end_time).astimezone(local_tz)
         lesson_subject = lesson.subject.name if lesson.subject else "Unknown Subject"
+        if not lesson.subject and lesson.is_event and lesson.curriculum:
+            # edupage-api stores flags.event.name in curriculum for events.
+            lesson_subject = lesson.curriculum.strip() or lesson_subject
         lesson_subject_prefix = "[Canceled] " if lesson.is_cancelled else ""
 
         cal_event = CalendarEvent(

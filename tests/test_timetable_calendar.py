@@ -5,11 +5,12 @@ import logging
 
 from edupage_api import Edupage
 from edupage_api.subjects import Subject
-from edupage_api.timetables import Lesson, Timetables
+from edupage_api.timetables import Lesson
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 import pytest
 
 from custom_components.homeassistantedupage.calendar import EdupageCalendar
+from custom_components.homeassistantedupage.timetable_api import EventNameTimetables
 
 
 DAY = date(2026, 9, 28)
@@ -47,11 +48,17 @@ def _lesson(*, subject=None, curriculum=None, is_event=True, is_cancelled=False)
 
 
 @pytest.mark.parametrize("is_cancelled", [False, True])
+@pytest.mark.parametrize("title_location", ["flags", "top_level"])
 async def test_edupage_event_name_reaches_calendar(
-    timetable_calendar, freezer, is_cancelled
+    timetable_calendar, freezer, is_cancelled, title_location
 ):
     """Use the installed API parser to cover the event-name data contract."""
-    timetable = Timetables(Edupage())._Timetables__parse_timetable(
+    title_data = (
+        {"flags": {"event": {"name": EVENT_TITLE}}}
+        if title_location == "flags"
+        else {"name": EVENT_TITLE}
+    )
+    timetable = EventNameTimetables(Edupage())._Timetables__parse_timetable(
         [{
             "type": "event",
             "uniperiod": "",
@@ -59,7 +66,7 @@ async def test_edupage_event_name_reaches_calendar(
             "endtime": "24:00",
             "groupnames": [],
             "removed": is_cancelled,
-            "flags": {"event": {"name": EVENT_TITLE}},
+            **title_data,
         }]
     )
     timetable_calendar.coordinator.data["timetable"] = {DAY: timetable}

@@ -1,6 +1,5 @@
 import logging
 
-from edupage_api import Edupage as APIEdupage
 from edupage_api import Login
 from edupage_api.exceptions import (
     BadCredentialsException,
@@ -8,6 +7,8 @@ from edupage_api.exceptions import (
 )
 
 from homeassistant.helpers.update_coordinator import UpdateFailed
+
+from .timetable_api import TimetableEdupage as APIEdupage
 
 _LOGGER = logging.getLogger(__name__)
 

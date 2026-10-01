@@ -260,6 +260,7 @@ def _edupage_with_grades_failing():
     """An edupage whose get_grades() raises but everything else succeeds."""
     edupage = MagicMock()
     edupage.get_grades = AsyncMock(side_effect=RuntimeError("non-numeric grade"))
+    edupage.get_text_grades = AsyncMock(return_value=[])
     edupage.get_subjects = AsyncMock(return_value=["Math"])
     edupage.get_notifications = AsyncMock(return_value=[{"id": 1}])
     edupage.get_timetable = AsyncMock(return_value=[])
@@ -387,3 +388,20 @@ async def test_collect_data_records_all_sections_ok_when_nothing_fails():
     assert ok["grades"] is True
     assert ok["school_year"] is True
     assert ok["grades_per_term"] is True
+
+
+async def test_collect_data_text_grade_failure_is_optional():
+    edupage = _edupage_with_grades_failing()
+    edupage.get_text_grades = AsyncMock(side_effect=TypeError("missing collection"))
+    data = await _collect_data(edupage, _OkStudent(), "Max")
+    assert data["text_grades"] == []
+    assert data["data_ok"]["text_grades"] is False
+    assert data["data_ok"]["subjects"] is True
+
+
+async def test_collect_data_fetches_text_grades():
+    edupage = _edupage_with_grades_failing()
+    edupage.get_text_grades = AsyncMock(return_value=["assessment"])
+    data = await _collect_data(edupage, _OkStudent(), "Max")
+    assert data["text_grades"] == ["assessment"]
+    assert data["data_ok"]["text_grades"] is True

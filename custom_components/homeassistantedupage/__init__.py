@@ -97,6 +97,15 @@ async def _collect_data(edupage, student, student_name):
         data_ok["grades"] = False
 
     try:
+        text_grades = await edupage.get_text_grades(student)
+        data_ok["text_grades"] = True
+    except Exception as e:  # noqa: BLE001
+        # This optional source must not prevent other data from refreshing.
+        _LOGGER.debug("get_text_grades failed (%s)", type(e).__name__)
+        text_grades = []
+        data_ok["text_grades"] = False
+
+    try:
         subjects = await edupage.get_subjects()
         data_ok["subjects"] = True
     except Exception as e:  # noqa: BLE001
@@ -230,6 +239,7 @@ async def _collect_data(edupage, student, student_name):
     return {
         "student": student_data,
         "grades": grades,
+        "text_grades": text_grades,
         "subjects": subjects,
         "timetable": timetable_data,
         "canteen_menu": canteen_menu_data,

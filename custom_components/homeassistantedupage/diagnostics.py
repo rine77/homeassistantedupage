@@ -120,6 +120,7 @@ def _section_summary(data: dict[str, Any]) -> dict[str, Any]:
     data_ok = data.get("data_ok") or {}
     section_values = {
         "grades": data.get("grades"),
+        "text_grades": data.get("text_grades"),
         "subjects": data.get("subjects"),
         "notifications": data.get("notifications"),
         "timetable": data.get("timetable"),

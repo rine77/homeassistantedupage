@@ -236,6 +236,8 @@ async def async_setup_entry(
         )
     )
 
+    sensors.append(EduPageTextAssessmentSensor(coordinator, student_id, student_name))
+
     async_add_entities(sensors, True)
 
 
@@ -940,3 +942,78 @@ class EduPageTermAverageSensor(StateRestoringSensor):
             "subject_averages": subject_averages,
             "data_stale": self.data_stale,
         }
+
+
+class EduPageTextAssessmentSensor(StateRestoringSensor):
+    """Count textual assessments and expose a bounded list, newest first."""
+
+    _data_key = "text_grades"
+    _attr_icon = "mdi:comment-text-outline"
+
+    def __init__(self, coordinator, student_id, student_name):
+        super().__init__(coordinator)
+        self._attr_name = compact_entity_name(
+            student_name or str(student_id), "Text assessments"
+        )
+        self._attr_unique_id = f"edupage_text_assessments_{student_id}"
+        self._attr_device_info = student_device_info(
+            student_id, student_name or str(student_id)
+        )
+        self._last_attributes = {}
+
+    def _data_is_fresh(self):
+        return super()._data_is_fresh() and "text_grades" in (self.coordinator.data or {})
+
+    def _coerce_restored(self, raw_state):
+        try:
+            return int(raw_state)
+        except (TypeError, ValueError):
+            return None
+
+    def _apply_restored(self, last_state):
+        super()._apply_restored(last_state)
+        if last_state is not None and self._last_value is not None:
+            self._last_attributes = {
+                key: last_state.attributes[key]
+                for key in ("assessments", "assessments_exposed", "assessments_truncated", "latest")
+                if key in last_state.attributes
+            }
+
+    def _snapshot(self):
+        if not self._data_is_fresh():
+            return
+        items = []
+        for grade in self.coordinator.data.get("text_grades") or []:
+            grade_date = getattr(grade, "date", None)
+            items.append({
+                "id": getattr(grade, "grade_id", None),
+                "text": getattr(grade, "comment", None),
+                "type": getattr(grade, "grade_type", None),
+                "date": grade_date.isoformat() if grade_date is not None else None,
+                "subject_id": getattr(grade, "subject_id", None),
+                "subject": getattr(grade, "subject_name", None),
+            })
+        items.sort(key=lambda item: item["date"] or "", reverse=True)
+        self._set_value(len(items))
+        attributes = {"assessments": [], "latest": None}
+        for item in items[:_MAX_EVENTS]:
+            candidate = {
+                "assessments": [*attributes["assessments"], item],
+                "latest": items[0],
+            }
+            if len(json.dumps(candidate, ensure_ascii=False).encode("utf-8")) > _MAX_STATE_ATTRIBUTES_BYTES - 256:
+                break
+            attributes = candidate
+        attributes["assessments_exposed"] = len(attributes["assessments"])
+        attributes["assessments_truncated"] = len(attributes["assessments"]) < len(items)
+        self._last_attributes = attributes
+
+    @property
+    def state(self):
+        self._snapshot()
+        return self._last_value
+
+    @property
+    def extra_state_attributes(self):
+        self._snapshot()
+        return {**self._last_attributes, "data_stale": self.data_stale}

@@ -5,6 +5,7 @@ from edupage_api import Login
 from edupage_api.exceptions import (
     BadCredentialsException,
     InsufficientPermissionsException,
+    NotParentException,
 )
 
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -102,6 +103,24 @@ class Edupage:
             return await self.hass.async_add_executor_job(self.api.get_grades)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error updating get_grades() data from API: {e}")
+
+    def _get_text_grades(self, student):
+        """Read in the selected child's context and restore the parent."""
+        try:
+            self.api.switch_to_child(student)
+        except NotParentException:
+            return self.api.get_text_grades()
+        try:
+            return self.api.get_text_grades()
+        finally:
+            self.api.switch_to_parent()
+
+    async def get_text_grades(self, student):
+        """Fetch textual assessments through the official API."""
+        try:
+            return await self.hass.async_add_executor_job(self._get_text_grades, student)
+        except Exception as e:  # noqa: BLE001
+            raise UpdateFailed("EDUPAGE error updating text assessments") from e
 
     async def get_subjects(self):
         try:

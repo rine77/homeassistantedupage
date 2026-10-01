@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 import pytest
 
 from custom_components.homeassistantedupage.calendar import EdupageCalendar
-from custom_components.homeassistantedupage.timetable_api import EventNameTimetables
+from edupage_api.timetables import Timetables
 
 
 DAY = date(2026, 9, 28)
@@ -58,7 +58,7 @@ async def test_edupage_event_name_reaches_calendar(
         if title_location == "flags"
         else {"name": EVENT_TITLE}
     )
-    timetable = EventNameTimetables(Edupage())._Timetables__parse_timetable(
+    timetable = Timetables(Edupage())._Timetables__parse_timetable(
         [{
             "type": "event",
             "uniperiod": "",

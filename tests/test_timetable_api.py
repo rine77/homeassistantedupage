@@ -1,4 +1,4 @@
-"""Tests for the pinned API's top-level timetable event-name workaround."""
+"""Regression tests for the upstream timetable event-name parser."""
 
 from copy import deepcopy
 from datetime import date
@@ -9,10 +9,7 @@ from edupage_api.exceptions import NotLoggedInException
 from edupage_api.people import EduStudent
 import pytest
 
-from custom_components.homeassistantedupage.timetable_api import (
-    EventNameTimetables,
-    TimetableEdupage,
-)
+from edupage_api.timetables import Timetables
 
 
 def _item(**changes):
@@ -31,7 +28,7 @@ def _item(**changes):
     ("changes", "expected"),
     [
         ({}, "School holiday"),
-        ({"name": "  Holiday  "}, "Holiday"),
+        ({"name": "  Holiday  "}, "  Holiday  "),
         ({"name": None}, None),
         ({"name": "   "}, None),
         ({"name": 123}, None),
@@ -43,20 +40,20 @@ def _item(**changes):
 def test_top_level_name_fallback(changes, expected):
     plan = [_item(**changes)]
     original = deepcopy(plan)
-    result = EventNameTimetables(Edupage())._Timetables__parse_timetable(plan)
+    result = Timetables(Edupage())._Timetables__parse_timetable(plan)
     assert result.lessons[0].curriculum == expected
     assert plan == original
 
 
 def test_skipped_headers_do_not_shift_event_names():
     plan = [{"header": []}, _item(), {"header": [{"cmd": "addlesson_t"}]}]
-    result = EventNameTimetables(Edupage())._Timetables__parse_timetable(plan)
+    result = Timetables(Edupage())._Timetables__parse_timetable(plan)
     assert len(result.lessons) == 1
     assert result.lessons[0].curriculum == "School holiday"
 
 
-def test_public_timetable_paths_use_compatibility_parser():
-    api = TimetableEdupage()
+def test_public_timetable_paths_preserve_event_names():
+    api = Edupage()
     api.is_logged_in = True
     day = date(2026, 9, 28)
     with patch(
@@ -75,4 +72,4 @@ def test_public_timetable_paths_use_compatibility_parser():
 
 def test_unauthenticated_requests_still_fail():
     with pytest.raises(NotLoggedInException):
-        TimetableEdupage().get_my_timetable(date(2026, 9, 28))
+        Edupage().get_my_timetable(date(2026, 9, 28))

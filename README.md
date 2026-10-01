@@ -588,7 +588,10 @@ returned by EduPage's text-grade API for the current grading period. It includes
 behavior notes when the API supplies them. The `assessments` attribute contains
 up to 50 entries, newest dated entry first, with `id`, `text`, `type`, `date`,
 `subject_id` and `subject`. Undated entries follow dated entries. `latest` holds
-the first exposed entry, or `null` when none can be exposed. Types are the raw
+the first exposed entry, or `null` when none can be exposed.
+`latest_with_text` holds the newest entry with a non-empty comment, even if it
+is outside the exposed list. Whitespace-only comments are ignored for this
+attribute. An entry too large to fit the attribute budget is not exposed. Types are the raw
 EduPage values; no interpretation as positive/negative behavior is applied.
 Subject selection for numeric grade sensors does not hide these assessments.
 
@@ -600,13 +603,22 @@ API 0.13.0 may fail for accounts with no text-grade collection and skips entries
 without a subject ID; such data cannot currently be exposed by this integration.
 Diagnostics include only fetch status and count, never assessment contents.
 
+Existing subject sensors also expose matching entries under `text_assessments`,
+with `text_assessments_count`, `text_assessments_exposed`,
+`text_assessments_truncated`, `text_assessments_latest` and
+`text_assessments_latest_with_text`. These attributes do not affect the numeric
+grade count or average. Their independent freshness is indicated by
+`text_assessments_data_stale`; cached text assessments survive temporary fetch
+failures and restarts. The overview remains available independently of which
+subject sensors are selected.
+
 Example Markdown dashboard card (replace the entity ID with yours):
 
 ```yaml
 type: markdown
 title: Latest text assessment
 content: >-
-  {% set latest = state_attr('sensor.edupage_text_assessments_student', 'latest') %}
+  {% set latest = state_attr('sensor.edupage_text_assessments_student', 'latest_with_text') %}
   {% if latest %}
   **{{ latest.subject or 'General' }}** — {{ latest.date or 'No date' }}
 

@@ -121,3 +121,55 @@ async def test_student_account_needs_no_parent_restore():
     wrapper.api.get_text_grades.return_value = []
     assert await wrapper.get_text_grades(123) == []
     wrapper.api.switch_to_parent.assert_not_called()
+
+
+def test_latest_with_text_skips_empty_comments(hass):
+    entity = sensor(hass, [grade(1, text="  "), grade(2, text="Praise", date=datetime(2026, 9, 20))])
+    attrs = entity.extra_state_attributes
+    assert attrs["latest"]["id"] == 1
+    assert attrs["latest_with_text"]["id"] == 2
+    assert len(attrs["assessments"]) == 2
+    entity.coordinator.data["text_grades"] = [grade(text="")]
+    assert entity.extra_state_attributes["latest_with_text"] is None
+
+
+def test_latest_with_text_outside_exposed_list(hass):
+    entity = sensor(hass, [grade(i, text="") for i in range(60)] + [grade(99, text="Old praise", date=None)])
+    attrs = entity.extra_state_attributes
+    assert attrs["assessments_exposed"] == 50
+    assert attrs["latest_with_text"]["id"] == 99
+    assert entity.state == 61
+
+
+def test_subject_assessments_match_ids_and_preserve_grade_count(hass):
+    from custom_components.homeassistantedupage.sensor import EduPageSubjectSensor
+    overview = sensor(hass, [grade(1), grade(2)])
+    overview.coordinator.data["text_grades"][1].subject_id = 8
+    overview.coordinator.data["grades"] = []
+    overview.coordinator.data["data_ok"]["grades"] = True
+    entity = EduPageSubjectSensor(overview.coordinator, 123, "Student", "Behavior", "7")
+    assert entity.state == 0
+    attrs = entity.extra_state_attributes
+    assert attrs["text_assessments_count"] == 1
+    assert attrs["text_assessments_latest_with_text"]["id"] == 1
+    assert attrs["text_assessments_data_stale"] is False
+    overview.coordinator.data["text_grades"] = []
+    overview.coordinator.data["data_ok"]["text_grades"] = False
+    assert entity.extra_state_attributes["text_assessments_count"] == 1
+    assert entity.extra_state_attributes["text_assessments_data_stale"] is True
+    assert entity.extra_state_attributes["data_stale"] is False
+    overview.coordinator.data["data_ok"]["text_grades"] = True
+    assert entity.extra_state_attributes["text_assessments_count"] == 0
+
+
+def test_subject_restores_text_attributes_independently(hass):
+    from custom_components.homeassistantedupage.sensor import EduPageSubjectSensor
+    overview = sensor(hass, [])
+    overview.coordinator.data["data_ok"]["text_grades"] = False
+    entity = EduPageSubjectSensor(overview.coordinator, 123, "Student", "Behavior", 7)
+    entity._apply_restored(State("sensor.example", "unknown", {
+        "text_assessments_count": 1,
+        "text_assessments_latest_with_text": {"text": "Restored praise"},
+    }))
+    assert entity.extra_state_attributes["text_assessments_count"] == 1
+    assert entity.extra_state_attributes["text_assessments_data_stale"] is True

@@ -481,12 +481,48 @@ class EduPageSubjectSensor(StateRestoringSensor):
         self._subject_name = unidecode(subject_name).replace(" ", "_").lower()
         self._subject_id = subject_id
         self._grades = grades or []
+        self._last_text_attributes = {}
         self._attr_device_info = student_device_info(student_id, student_name)
 
         self._attr_name = compact_entity_name(student_name, subject_name)
         self._name = self._attr_name
 
         self._unique_id = f"edupage_subject_{self._student_id}_{self._student_name}_{self._subject_name}"
+
+    def _apply_restored(self, last_state):
+        super()._apply_restored(last_state)
+        if last_state is not None:
+            self._last_text_attributes = {
+                key: value for key, value in (getattr(last_state, "attributes", {}) or {}).items()
+                if key.startswith("text_assessments_")
+                and key != "text_assessments_data_stale"
+            }
+
+    def _text_attributes(self, base_attributes):
+        fresh = (
+            _section_fresh(self.coordinator, "text_grades")
+            and "text_grades" in (self.coordinator.data or {})
+        )
+        if fresh:
+            grades = [
+                grade for grade in self.coordinator.data.get("text_grades") or []
+                if self._subject_id is not None
+                and getattr(grade, "subject_id", None) is not None
+                and str(grade.subject_id) == str(self._subject_id)
+            ]
+            values = _text_assessment_attributes(grades, base_attributes)
+            self._last_text_attributes = {
+                "text_assessments": values["assessments"],
+                "text_assessments_count": values["assessments_count"],
+                "text_assessments_exposed": values["assessments_exposed"],
+                "text_assessments_truncated": values["assessments_truncated"],
+                "text_assessments_latest": values["latest"],
+                "text_assessments_latest_with_text": values["latest_with_text"],
+            }
+        return {
+            **self._last_text_attributes,
+            "text_assessments_data_stale": not fresh,
+        }
 
     @property
     def unique_id(self):
@@ -576,6 +612,7 @@ class EduPageSubjectSensor(StateRestoringSensor):
                 }
             )
         attributes["data_stale"] = self.data_stale
+        attributes.update(self._text_attributes(attributes))
         return attributes
 
 
@@ -975,38 +1012,16 @@ class EduPageTextAssessmentSensor(StateRestoringSensor):
         if last_state is not None and self._last_value is not None:
             self._last_attributes = {
                 key: last_state.attributes[key]
-                for key in ("assessments", "assessments_exposed", "assessments_truncated", "latest")
+                for key in ("assessments", "assessments_count", "assessments_exposed", "assessments_truncated", "latest", "latest_with_text")
                 if key in last_state.attributes
             }
 
     def _snapshot(self):
         if not self._data_is_fresh():
             return
-        items = []
-        for grade in self.coordinator.data.get("text_grades") or []:
-            grade_date = getattr(grade, "date", None)
-            items.append({
-                "id": getattr(grade, "grade_id", None),
-                "text": getattr(grade, "comment", None),
-                "type": getattr(grade, "grade_type", None),
-                "date": grade_date.isoformat() if grade_date is not None else None,
-                "subject_id": getattr(grade, "subject_id", None),
-                "subject": getattr(grade, "subject_name", None),
-            })
-        items.sort(key=lambda item: item["date"] or "", reverse=True)
-        self._set_value(len(items))
-        attributes = {"assessments": [], "latest": None}
-        for item in items[:_MAX_EVENTS]:
-            candidate = {
-                "assessments": [*attributes["assessments"], item],
-                "latest": items[0],
-            }
-            if len(json.dumps(candidate, ensure_ascii=False).encode("utf-8")) > _MAX_STATE_ATTRIBUTES_BYTES - 256:
-                break
-            attributes = candidate
-        attributes["assessments_exposed"] = len(attributes["assessments"])
-        attributes["assessments_truncated"] = len(attributes["assessments"]) < len(items)
-        self._last_attributes = attributes
+        grades = self.coordinator.data.get("text_grades") or []
+        self._set_value(len(grades))
+        self._last_attributes = _text_assessment_attributes(grades)
 
     @property
     def state(self):
@@ -1017,3 +1032,48 @@ class EduPageTextAssessmentSensor(StateRestoringSensor):
     def extra_state_attributes(self):
         self._snapshot()
         return {**self._last_attributes, "data_stale": self.data_stale}
+
+
+def _text_assessment_attributes(grades, base_attributes=None):
+    """Build bounded text assessment attributes, preserving raw API types."""
+    items = []
+    for grade in grades:
+        grade_date = getattr(grade, "date", None)
+        items.append({
+            "id": getattr(grade, "grade_id", None),
+            "text": getattr(grade, "comment", None),
+            "type": getattr(grade, "grade_type", None),
+            "date": grade_date.isoformat() if grade_date is not None else None,
+            "subject_id": getattr(grade, "subject_id", None),
+            "subject": getattr(grade, "subject_name", None),
+        })
+    items.sort(key=lambda item: item["date"] or "", reverse=True)
+    attributes = {
+        "assessments": [], "latest": None, "latest_with_text": None,
+        "assessments_count": len(items),
+    }
+
+    def fits(candidate):
+        return len(json.dumps(
+            {**(base_attributes or {}), **candidate}, ensure_ascii=False
+        ).encode("utf-8")) <= _MAX_STATE_ATTRIBUTES_BYTES - 256
+
+    # The latest non-empty comment can be outside the exposed list.
+    latest_with_text = next(
+        (item for item in items if str(item["text"] or "").strip()), None
+    )
+    candidate = {**attributes, "latest_with_text": latest_with_text}
+    if fits(candidate):
+        attributes = candidate
+    for item in items[:_MAX_EVENTS]:
+        candidate = {
+            **attributes,
+            "assessments": [*attributes["assessments"], item],
+            "latest": items[0],
+        }
+        if not fits(candidate):
+            break
+        attributes = candidate
+    attributes["assessments_exposed"] = len(attributes["assessments"])
+    attributes["assessments_truncated"] = len(attributes["assessments"]) < len(items)
+    return attributes

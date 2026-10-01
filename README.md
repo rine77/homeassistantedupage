@@ -39,7 +39,7 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 - Multiple students and EduPage accounts through separate config entries
 - Modern app-code two-factor authentication
 - Interactive reauthentication when a stored session expires
-- English, German, Polish, Slovak, and Spanish translations
+- Czech, English, German, Polish, Slovak, and Spanish translations
 - Restoration of the last known sensor states after Home Assistant restarts or temporary EduPage outages
 - Privacy-safe diagnostics for troubleshooting account capabilities, partial
   data failures, student filtering, assignments, and grade metadata

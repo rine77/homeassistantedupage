@@ -6,10 +6,15 @@
 
 * the stored session is found expired during initial setup;
 * the stored session expires during a later coordinator refresh.
+
+``async_start_reauth()`` is a ``@callback`` returning ``None`` that schedules its
+own task, so it must be **called, not awaited** — awaiting it raises
+``TypeError: 'NoneType' object can't be awaited``. These tests therefore use
+``Mock`` rather than ``AsyncMock`` and assert on the call, not the await.
 """
 
 from inspect import signature
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -61,7 +66,7 @@ def _entry():
 
 async def test_expired_session_during_setup_starts_reauth(hass: HomeAssistant):
     entry = _entry()
-    reauth = AsyncMock()
+    reauth = Mock()
     entry.async_start_reauth = reauth
 
     with patch.object(
@@ -72,7 +77,7 @@ async def test_expired_session_during_setup_starts_reauth(hass: HomeAssistant):
         result = await async_setup_entry(hass, entry)
 
     assert result is False
-    reauth.assert_awaited_once()
+    reauth.assert_called_once()
 
 
 async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant):
@@ -82,7 +87,7 @@ async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant)
         config_entries.ConfigEntryState.SETUP_IN_PROGRESS,
         None,
     )
-    reauth = AsyncMock()
+    reauth = Mock()
     entry.async_start_reauth = reauth
 
     login_calls = {"n": 0}
@@ -112,13 +117,13 @@ async def test_expired_session_during_refresh_starts_reauth(hass: HomeAssistant)
         result = await async_setup_entry(hass, entry)
 
         assert result is True
-        reauth.assert_not_awaited()
+        reauth.assert_not_called()
 
         coordinator = hass.data[DOMAIN][entry.entry_id]
         initial_data = coordinator.data
         await coordinator.async_request_refresh()
 
-        reauth.assert_awaited_once()
+        reauth.assert_called_once()
         assert coordinator.last_update_success is False
         assert coordinator.data is initial_data
     finally:

@@ -22,6 +22,7 @@ from .const import (
     CONF_SUBJECT_IDS,
     DOMAIN,
 )
+from .homeassistant_edupage import _normalise_dbi_groups
 from .twofactor import start_two_factor
 
 _LOGGER = logging.getLogger(__name__)
@@ -174,6 +175,10 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _finalize_setup(self, api, user_input):
         """Fetch students and advance to the student-selection step."""
+        # Every login path converges here: plain login, the official two-factor
+        # flow, and the custom fallback driver. Normalise before the first read so
+        # an empty array-shaped dbi item group does not break get_students().
+        _normalise_dbi_groups(api)
         try:
             students = await self.hass.async_add_executor_job(api.get_students)
         except Exception:  # noqa: BLE001

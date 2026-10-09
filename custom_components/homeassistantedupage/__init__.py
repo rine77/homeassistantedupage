@@ -310,7 +310,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.debug("INIT login_success (session reloaded)")
     except EdupageSessionExpired as e:
         _LOGGER.error("INIT stored session invalid/expired: %s", e)
-        await entry.async_start_reauth(
+        entry.async_start_reauth(
             hass, context={"title_placeholders": {"name": entry.title}}
         )
         return False
@@ -346,7 +346,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             except EdupageSessionExpired as e:
                 _LOGGER.error("INIT session expired during update: %s", e)
-                await entry.async_start_reauth(
+                entry.async_start_reauth(
                     hass, context={"title_placeholders": {"name": entry.title}}
                 )
                 raise UpdateFailed("EduPage session expired") from e

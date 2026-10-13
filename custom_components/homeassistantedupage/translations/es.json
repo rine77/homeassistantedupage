@@ -5,7 +5,8 @@
       "cannot_connect": "No se pudo conectar con EduPage.",
       "invalid_auth": "Credenciales no válidas.",
       "invalid_code": "El código de confirmación no es válido o ha caducado.",
-      "captcha_required": "EduPage solicita una verificación CAPTCHA. Inténtalo de nuevo más tarde o comprueba tus credenciales."
+      "captcha_required": "EduPage solicita una verificación CAPTCHA. Inténtalo de nuevo más tarde o comprueba tus credenciales.",
+      "not_confirmed": "El inicio de sesión aún no se ha confirmado en la aplicación móvil de EduPage. Abre la aplicación y apruébalo e inténtalo de nuevo."
     },
     "step": {
       "user": {
@@ -18,10 +19,13 @@
         "title": "Iniciar sesión en EduPage"
       },
       "two_factor": {
-        "title": "Verificación en dos pasos",
-        "description": "Se requiere una confirmación en la aplicación móvil EduPage. Introduce el código de confirmación que aparece allí.",
+        "title": "Autenticación de dos factores",
+        "description": "EduPage exige un segundo factor para esta cuenta.\n\nIntroduce el código de confirmación de la aplicación móvil EduPage. Si no puedes acceder a la aplicación, puedes pedir en su lugar que EduPage envíe el código a tu dirección de correo electrónico, que reenvíe la notificación de la aplicación o que confirme que ya has aprobado este inicio de sesión en ella.\n\nLa dirección de correo registrada es `{email}` y los dispositivos vinculados son `{devices}`.\n\nEduPage limita la frecuencia con la que se puede solicitar un código. Si se rechaza una solicitud, espera {retry_seconds} segundos e inténtalo de nuevo.",
         "data": {
-          "two_factor_code": "Código de confirmación"
+          "two_factor_code": "Código de confirmación",
+          "send_email_code": "Enviar el código a mi dirección de correo electrónico",
+          "resend_notification": "Reenviar la notificación de la aplicación móvil",
+          "device_confirmed": "Ya he confirmado este inicio de sesión en la aplicación"
         }
       },
       "select_student": {
@@ -39,10 +43,13 @@
         }
       },
       "reconfigure_code": {
-        "title": "Verificación en dos pasos",
-        "description": "Introduce el código de confirmación que aparece en la aplicación móvil EduPage.",
+        "title": "Autenticación de dos factores",
+        "description": "EduPage exige un segundo factor para esta cuenta.\n\nIntroduce el código de confirmación de la aplicación móvil EduPage. Si no puedes acceder a la aplicación, puedes pedir en su lugar que EduPage envíe el código a tu dirección de correo electrónico, que reenvíe la notificación de la aplicación o que confirme que ya has aprobado este inicio de sesión en ella.\n\nLa dirección de correo registrada es `{email}` y los dispositivos vinculados son `{devices}`.\n\nEduPage limita la frecuencia con la que se puede solicitar un código. Si se rechaza una solicitud, espera {retry_seconds} segundos e inténtalo de nuevo.",
         "data": {
-          "two_factor_code": "Código de confirmación"
+          "two_factor_code": "Código de confirmación",
+          "send_email_code": "Enviar el código a mi dirección de correo electrónico",
+          "resend_notification": "Reenviar la notificación de la aplicación móvil",
+          "device_confirmed": "Ya he confirmado este inicio de sesión en la aplicación"
         }
       }
     },

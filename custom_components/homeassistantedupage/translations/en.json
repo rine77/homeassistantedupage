@@ -5,7 +5,8 @@
       "cannot_connect": "Failed to connect",
       "invalid_auth": "Invalid credentials",
       "invalid_code": "The confirmation code is invalid or has expired.",
-      "captcha_required": "EduPage is asking for a CAPTCHA. Try again later or check your credentials."
+      "captcha_required": "EduPage is asking for a CAPTCHA. Try again later or check your credentials.",
+      "not_confirmed": "The login has not been confirmed in the EduPage mobile app yet. Open the app and approve the login, then try again."
     },
     "step": {
       "user": {
@@ -19,9 +20,12 @@
       },
       "two_factor": {
         "title": "Two-Factor Authentication",
-        "description": "A confirmation in the EduPage mobile app is required. Enter the confirmation code shown there.",
+        "description": "EduPage requires a second factor for this account.\n\nEnter the confirmation code from the EduPage mobile app. If you cannot reach the app, you can instead ask EduPage to send the code to your email address, to resend the app notification, or to confirm that you have already approved this login in the app.\n\nThe email address on file is `{email}`, and the paired devices are `{devices}`.\n\nEduPage limits how often a code can be requested. If a request is rejected, wait {retry_seconds} seconds before trying again.",
         "data": {
-          "two_factor_code": "Confirmation code"
+          "two_factor_code": "Confirmation code",
+          "send_email_code": "Send the code to my email address",
+          "resend_notification": "Resend the mobile app notification",
+          "device_confirmed": "I have already confirmed this login in the app"
         }
       },
       "select_student": {
@@ -40,9 +44,12 @@
       },
       "reconfigure_code": {
         "title": "Two-Factor Authentication",
-        "description": "Enter the confirmation code shown in the EduPage mobile app.",
+        "description": "EduPage requires a second factor for this account.\n\nEnter the confirmation code from the EduPage mobile app. If you cannot reach the app, you can instead ask EduPage to send the code to your email address, to resend the app notification, or to confirm that you have already approved this login in the app.\n\nThe email address on file is `{email}`, and the paired devices are `{devices}`.\n\nEduPage limits how often a code can be requested. If a request is rejected, wait {retry_seconds} seconds before trying again.",
         "data": {
-          "two_factor_code": "Confirmation code"
+          "two_factor_code": "Confirmation code",
+          "send_email_code": "Send the code to my email address",
+          "resend_notification": "Resend the mobile app notification",
+          "device_confirmed": "I have already confirmed this login in the app"
         }
       }
     },

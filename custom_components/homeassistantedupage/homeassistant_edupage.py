@@ -43,6 +43,16 @@ class Edupage:
         login = LoginSession(self.api)
         login.reload_data(subdomain, sessionid, username)
 
+    async def logout(self):
+        """Invalidate the session on the EduPage server.
+
+        Only safe once the entry is being removed: the stored PHPSESSID is the
+        integration's credential, so logging out while the entry is still loaded
+        would force a full reauthentication on the next poll.
+        """
+        await self.hass.async_add_executor_job(self.api.logout)
+        self.sessionid = ""
+
     async def login(self, username, subdomain, sessionid):
         """Load the stored session. Never starts username/password login."""
         self.sessionid = sessionid

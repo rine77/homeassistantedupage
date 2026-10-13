@@ -565,6 +565,9 @@ class EduPageSubjectSensor(StateRestoringSensor):
                 attributes[f"grade_{i+1}_grade_n"] = grade.grade_n
                 if grade.max_points:
                     attributes[f"grade_{i+1}_max_points"] = grade.max_points
+                importance = getattr(grade, "importance", None)
+                if importance is not None:
+                    attributes[f"grade_{i+1}_importance"] = importance
                 if grade.class_grade_avg:
                     attributes[f"grade_{i+1}_class_avg_grade"] = grade.class_grade_avg
                 if grade.percent:

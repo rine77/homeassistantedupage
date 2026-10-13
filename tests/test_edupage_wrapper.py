@@ -5,8 +5,8 @@ When the stored PHPSESSID is expired, ``Edupage.login()`` must surface an
 reauthentication flow is started. Covers the two real-world cases from
 homeassistantedupage#70 / #95:
 
-* ``Login.reload_data()`` completes but the api reports ``is_logged_in is False``;
-* ``Login.reload_data()`` raises ``IndexError``.
+* ``LoginSession.reload_data()`` completes but the api reports ``is_logged_in is False``;
+* ``LoginSession.reload_data()`` raises ``IndexError``.
 """
 
 from unittest.mock import MagicMock, patch
@@ -39,7 +39,7 @@ async def test_login_raises_session_expired_when_not_logged_in():
     api.is_logged_in = False
 
     with patch(
-        "custom_components.homeassistantedupage.homeassistant_edupage.Login",
+        "custom_components.homeassistantedupage.homeassistant_edupage.LoginSession",
         return_value=MagicMock(),
     ):
         with pytest.raises(EdupageSessionExpired):
@@ -54,7 +54,7 @@ async def test_login_raises_session_expired_on_index_error():
     login_mock.reload_data.side_effect = IndexError("list index out of range")
 
     with patch(
-        "custom_components.homeassistantedupage.homeassistant_edupage.Login",
+        "custom_components.homeassistantedupage.homeassistant_edupage.LoginSession",
         return_value=login_mock,
     ):
         with pytest.raises(EdupageSessionExpired):
@@ -67,7 +67,7 @@ async def test_login_returns_true_on_valid_session():
     api.is_logged_in = True
 
     with patch(
-        "custom_components.homeassistantedupage.homeassistant_edupage.Login",
+        "custom_components.homeassistantedupage.homeassistant_edupage.LoginSession",
         return_value=MagicMock(),
     ):
         result = await _wrapper(api).login("user", "mshviezdoslavova1", "sess")

@@ -1,7 +1,7 @@
 import logging
 
 from edupage_api import Edupage as APIEdupage
-from edupage_api import Login
+from edupage_api import LoginSession
 from edupage_api.exceptions import (
     BadCredentialsException,
     InsufficientPermissionsException,
@@ -11,39 +11,6 @@ from edupage_api.exceptions import (
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _normalise_dbi_groups(api) -> None:
-    """Rewrite empty array-shaped `dbi` item groups as mappings, in place.
-
-    EduPage serialises an item group that has no entries as an empty JSON array
-    instead of an empty object. edupage_api's DbiHelper.__get_item_with_id()
-    calls `.get()` on the group, so an array-shaped group raises
-    AttributeError: 'list' object has no attribute 'get', which breaks
-    get_classes() and get_timetable() for accounts at schools that leave a
-    group empty. The failing lookup reaches it through get_teacher() ->
-    get_teachers() -> EduAccount.parse -> fetch_classroom_number(), so the group
-    left empty is classrooms, teachers or subjects.
-
-    Only *empty* arrays are rewritten. A populated array has not been observed,
-    and mapping it onto positional keys would fabricate ids that can never match
-    a real reference, so it is left alone and keeps failing loudly.
-
-    This mirrors the fix proposed upstream in EdupageAPI/edupage-api#126 and can
-    be dropped once a released edupage-api includes it.
-    """
-    data = getattr(api, "data", None)
-    if not isinstance(data, dict):
-        return
-    dbi = data.get("dbi")
-    if not isinstance(dbi, dict):
-        return
-    for group_name, group in dbi.items():
-        if isinstance(group, list) and not group:
-            dbi[group_name] = {}
-            _LOGGER.debug(
-                "EDUPAGE normalised empty array-shaped dbi group %s", group_name
-            )
 
 
 class EdupageSessionExpired(UpdateFailed):
@@ -59,7 +26,7 @@ class Edupage:
     """Async wrapper around the edupage-api library.
 
     Runtime polling is deliberately session-only: a fresh PHPSESSID obtained
-    during the config flow (after 2FA) is reused via `Login.reload_data`.
+    during the config flow (after 2FA) is reused via `LoginSession.reload_data`.
     We never call `api.login()` at runtime so a 2FA prompt is never re-triggered
     by the 30-minute coordinator poll. If the stored session turns out to be
     expired we signal that with EdupageSessionExpired so the integration can
@@ -73,9 +40,8 @@ class Edupage:
 
     def _load_session(self, subdomain, sessionid, username):
         """Reload a stored EduPage session synchronously."""
-        login = Login(self.api)
+        login = LoginSession(self.api)
         login.reload_data(subdomain, sessionid, username)
-        _normalise_dbi_groups(self.api)
 
     async def login(self, username, subdomain, sessionid):
         """Load the stored session. Never starts username/password login."""
@@ -110,8 +76,9 @@ class Edupage:
                 "integration to refresh it."
             ) from e
         except IndexError as e:
-            # Login.reload_data() raises IndexError on a real installation when
-            # the stored session is expired (homeassistantedupage#70). Treat it
+            # LoginSession.reload_data() raises IndexError on a real
+            # installation when the stored session is expired
+            # (homeassistantedupage#70). Treat it
             # as an expired session so the reauthentication flow starts again.
             _LOGGER.error(
                 "EDUPAGE stored session could not be reloaded (expired): %s. "

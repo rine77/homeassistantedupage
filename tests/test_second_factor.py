@@ -359,10 +359,17 @@ async def test_device_confirmed_without_session_is_invalid(hass: HomeAssistant):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("action", ["send_email_code", "resend_notification"])
-async def test_retry_later_starts_a_countdown(hass: HomeAssistant, action):
+@pytest.mark.parametrize(
+    ("action", "method"),
+    [
+        ("send_email_code", "send_email_code"),
+        # The form key is singular, the TwoFactorLogin method plural.
+        ("resend_notification", "resend_notifications"),
+    ],
+)
+async def test_retry_later_starts_a_countdown(hass: HomeAssistant, action, method):
     challenge = _challenge()
-    getattr(challenge, action).side_effect = RetryLaterException("wait", 42)
+    getattr(challenge, method).side_effect = RetryLaterException("wait", 42)
     flow_id, _ = await _start(hass, challenge)
 
     with patch(

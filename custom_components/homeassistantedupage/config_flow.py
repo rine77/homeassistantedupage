@@ -35,6 +35,8 @@ _LOGGER = logging.getLogger(__name__)
 # ticked together with an (optional) code, performs its action, and re-renders
 # the step without consuming it.
 CONF_SEND_EMAIL_CODE = "send_email_code"
+# Note: the form key is singular but the TwoFactorLogin method is plural
+# (`resend_notifications`).
 CONF_RESEND_NOTIFICATION = "resend_notification"
 CONF_DEVICE_CONFIRMED = "device_confirmed"
 

@@ -55,6 +55,9 @@ def test_skipped_headers_do_not_shift_event_names():
 def test_public_timetable_paths_preserve_event_names():
     api = Edupage()
     api.is_logged_in = True
+    # get_my_timetable() resolves the user via get_user_id() (edupage-api
+    # #129), so the client needs data as well as a logged-in flag.
+    api.data = {"userid": "1"}
     day = date(2026, 9, 28)
     with patch(
         "edupage_api.timetables.Timetables._Timetables__get_date_plan",

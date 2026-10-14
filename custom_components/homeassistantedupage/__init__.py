@@ -594,3 +594,44 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
 
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Invalidate the EduPage session when the account is deleted.
+
+    The stored PHPSESSID is dead once the entry is gone, so log out on the
+    server rather than leaving it valid until it expires on its own.
+
+    Skipped when another entry still holds the same PHPSESSID - two students on
+    one EduPage account share a session, and invalidating it here would break
+    the sibling entry. Failures are logged and swallowed: the entry is being
+    deleted either way, and an orphaned session is not worth blocking removal
+    for.
+    """
+    phpsessid = entry.data.get(CONF_PHPSESSID)
+    if not phpsessid:
+        return
+
+    siblings = [
+        other
+        for other in hass.config_entries.async_entries(DOMAIN)
+        if other.entry_id != entry.entry_id
+        and other.data.get(CONF_PHPSESSID) == phpsessid
+    ]
+    if siblings:
+        _LOGGER.debug(
+            "INIT keeping the EduPage session; %s other entr%s still uses it",
+            len(siblings),
+            "y" if len(siblings) == 1 else "ies",
+        )
+        return
+
+    edupage = Edupage(hass=hass, sessionid=phpsessid)
+    try:
+        await edupage.login(
+            entry.data[CONF_USERNAME], entry.data[CONF_SUBDOMAIN], phpsessid
+        )
+        await edupage.logout()
+        _LOGGER.debug("INIT EduPage session invalidated on entry removal")
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.debug("INIT could not invalidate the EduPage session: %s", e)

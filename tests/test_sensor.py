@@ -61,6 +61,7 @@ class _FakeGrade:
             percent=None,
             max_points=None,
             class_grade_avg=None,
+            importance=None,
             subject_id=1,
     ):
         self.grade_n = grade_n
@@ -71,6 +72,7 @@ class _FakeGrade:
         self.percent = percent
         self.max_points = max_points
         self.class_grade_avg = class_grade_avg
+        self.importance = importance
         self.subject_id = subject_id
 
 @pytest.fixture
@@ -222,6 +224,49 @@ def test_latest_grade_uses_date_not_api_order(coordinator):
     assert attrs["latest_grade_percent"] == 95
     assert attrs["latest_grade_max_points"] == 20
     assert attrs["latest_grade_class_avg_grade"] == 2.4
+
+
+def test_grade_importance_is_exposed_per_grade(coordinator):
+    """edupage-api 0.13.3 always populates importance, so it is worth surfacing."""
+    coordinator.data["grades"] = [
+        _FakeGrade(
+            1,
+            "Weighted test",
+            datetime(2026, 9, 4, 9, 0),
+            importance=0.25,
+        )
+    ]
+
+    sensor = EduPageSubjectSensor(
+        coordinator,
+        student_id=1,
+        student_name="Max Kovaľ",
+        subject_name="Maths",
+        subject_id=1,
+        grades=[],
+    )
+
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["grade_1_importance"] == 0.25
+
+
+def test_grade_importance_omitted_when_absent(coordinator):
+    """Grades without an importance value add no attribute at all."""
+    coordinator.data["grades"] = [
+        _FakeGrade(2, "Plain test", datetime(2026, 9, 5, 9, 0))
+    ]
+
+    sensor = EduPageSubjectSensor(
+        coordinator,
+        student_id=1,
+        student_name="Max Kovaľ",
+        subject_name="Maths",
+        subject_id=1,
+        grades=[],
+    )
+
+    assert "grade_1_importance" not in sensor.extra_state_attributes
 
 
 def test_latest_grade_omits_missing_optional_fields(coordinator):

@@ -74,7 +74,7 @@ class _Resp:
 
 
 class _LoginStub:
-    """Replacement for edupage_api.Login used inside finish_with_code."""
+    """Replacement for edupage_api.LoginSession used inside finish_with_code."""
 
     def __init__(self, api):
         self._api = api
@@ -115,7 +115,7 @@ def test_finish_with_code_valid(monkeypatch):
     ok = _rpc(json.dumps({"status": "OK", "redirectUrl": "/user/"}))
     session = _SessionStub(ok)
     api = _ApiStub(session)
-    monkeypatch.setattr(twofactor, "Login", _LoginStub)
+    monkeypatch.setattr(twofactor, "LoginSession", _LoginStub)
     factor = twofactor.EdupageTwoFactor(
         api, requestid="r", tu="t", gu=None, au=""
     )
@@ -164,7 +164,7 @@ def test_absolute_redirect_url_not_double_joined(monkeypatch):
     )
     session = _SessionStub(ok_abs)
     api = _ApiStub(session)
-    monkeypatch.setattr(twofactor, "Login", _LoginStub)
+    monkeypatch.setattr(twofactor, "LoginSession", _LoginStub)
     twofactor.EdupageTwoFactor(api, "r", "t", None, "").finish_with_code("1")
     assert session.requested_url == "https://x.example/user/"
 
@@ -173,7 +173,7 @@ def test_code_submission_params_never_contains_password(monkeypatch):
     ok = _rpc(json.dumps({"status": "OK", "redirectUrl": "/user/"}))
     session = _SessionStub(ok)
     api = _ApiStub(session)
-    monkeypatch.setattr(twofactor, "Login", _LoginStub)
+    monkeypatch.setattr(twofactor, "LoginSession", _LoginStub)
 
     captured = {}
 

@@ -10,7 +10,7 @@ import logging
 
 from urllib.parse import urljoin
 
-from edupage_api import Login
+from edupage_api import LoginSession
 from edupage_api.compression import RequestData
 from edupage_api.exceptions import (
     BadCredentialsException,
@@ -82,7 +82,7 @@ class EdupageTwoFactor:
                 "Second factor did not yield a session (no PHPSESSID)."
             )
 
-        Login(self.api).reload_data(
+        LoginSession(self.api).reload_data(
             self.api.subdomain, phpsess, self.api.username
         )
 

@@ -6,7 +6,8 @@
       "invalid_auth": "Nesprávne prihlasovacie údaje.",
       "invalid_code": "Potvrdzovací kód je neplatný alebo jeho platnosť vypršala.",
       "captcha_required": "EduPage vyžaduje overenie CAPTCHA. Skúste to znova neskôr alebo skontrolujte prihlasovacie údaje.",
-      "not_confirmed": "Prihlásenie zatiaľ nebolo v mobilnej aplikácii EduPage potvrdené. Otvorte aplikáciu a prihlásenie schváľte, potom to skúste znova."
+      "not_confirmed": "Prihlásenie zatiaľ nebolo v mobilnej aplikácii EduPage potvrdené. Otvorte aplikáciu a prihlásenie schváľte, potom to skúste znova.",
+      "code_request_too_soon": "EduPage zatiaľ nepošle ďalší kód. Skúste to znova za {retry_seconds} sekúnd."
     },
     "step": {
       "user": {

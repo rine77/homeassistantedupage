@@ -6,7 +6,8 @@
       "invalid_auth": "Ungültige Zugangsdaten",
       "invalid_code": "Der Bestätigungscode ist ungültig oder abgelaufen.",
       "captcha_required": "EduPage verlangt ein CAPTCHA. Versuchen Sie es später erneut oder prüfen Sie Ihre Zugangsdaten.",
-      "not_confirmed": "Die Anmeldung wurde in der EduPage-App noch nicht bestätigt. Öffnen Sie die App und bestätigen Sie die Anmeldung, dann versuchen Sie es erneut."
+      "not_confirmed": "Die Anmeldung wurde in der EduPage-App noch nicht bestätigt. Öffnen Sie die App und bestätigen Sie die Anmeldung, dann versuchen Sie es erneut.",
+      "code_request_too_soon": "EduPage sendet noch keinen weiteren Code. Versuchen Sie es in {retry_seconds} Sekunden erneut."
     },
     "step": {
       "user": {

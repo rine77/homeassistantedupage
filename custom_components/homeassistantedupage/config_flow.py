@@ -174,14 +174,29 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         elif user_input is not None:
             code = (user_input.get(CONF_TWO_FACTOR_CODE) or "").strip()
             try:
-                if user_input.get(CONF_SEND_EMAIL_CODE):
-                    await self.hass.async_add_executor_job(challenge.send_email_code)
-                    _LOGGER.debug("EduPage second-factor code sent by email")
-                elif user_input.get(CONF_RESEND_NOTIFICATION):
-                    await self.hass.async_add_executor_job(
-                        challenge.resend_notifications
-                    )
-                    _LOGGER.debug("EduPage second-factor notification resent")
+                if user_input.get(CONF_SEND_EMAIL_CODE) or user_input.get(
+                    CONF_RESEND_NOTIFICATION
+                ):
+                    # EduPage rate-limits code requests. Honour its countdown
+                    # instead of firing a request it will only refuse, which
+                    # would restart the timer.
+                    remaining = self._cooldown_remaining()
+                    if remaining:
+                        _LOGGER.debug(
+                            "EduPage second-factor request suppressed; %s s left",
+                            remaining,
+                        )
+                        errors["base"] = "code_request_too_soon"
+                    elif user_input.get(CONF_SEND_EMAIL_CODE):
+                        await self.hass.async_add_executor_job(
+                            challenge.send_email_code
+                        )
+                        _LOGGER.debug("EduPage second-factor code sent by email")
+                    else:
+                        await self.hass.async_add_executor_job(
+                            challenge.resend_notifications
+                        )
+                        _LOGGER.debug("EduPage second-factor notification resent")
                 elif user_input.get(CONF_DEVICE_CONFIRMED):
                     confirmed = await self.hass.async_add_executor_job(
                         challenge.is_confirmed

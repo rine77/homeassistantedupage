@@ -6,7 +6,8 @@
       "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
       "invalid_code": "The confirmation code is invalid or has expired.",
       "captcha_required": "EduPage is asking for a CAPTCHA. Try again later or check your credentials.",
-      "not_confirmed": "The login has not been confirmed in the EduPage mobile app yet. Open the app and approve the login, then try again."
+      "not_confirmed": "The login has not been confirmed in the EduPage mobile app yet. Open the app and approve the login, then try again.",
+      "code_request_too_soon": "EduPage will not send another code yet. Try again in {retry_seconds} seconds."
     },
     "step": {
       "user": {

@@ -205,6 +205,7 @@ async def test_wrapper_logout_clears_the_stored_session_id(hass: HomeAssistant):
 
 def _entry(**data):
     entry = MagicMock()
+    entry.entry_id = data.pop("entry_id", "entry_1")
     entry.data = {
         CONF_PHPSESSID: "phpsess_123",
         "username": "user",
@@ -214,21 +215,94 @@ def _entry(**data):
     return entry
 
 
+def _register(hass, *entries):
+    """Put entries into hass.config_entries for the sibling-session checks."""
+    return patch.object(
+        hass.config_entries, "async_entries", return_value=list(entries)
+    )
+
+
 async def test_entry_removal_invalidates_the_session(hass: HomeAssistant):
     """Deleting the account logs out instead of leaving a session dangling."""
     from custom_components.homeassistantedupage import async_remove_entry
+
+    entry = _entry()
+    edupage = MagicMock()
+    edupage.login = AsyncMock()
+    edupage.logout = AsyncMock()
+
+    with (
+        _register(hass, entry),
+        patch("custom_components.homeassistantedupage.Edupage", return_value=edupage),
+    ):
+        await async_remove_entry(hass, entry)
+
+    edupage.login.assert_awaited_once_with("user", "school", "phpsess_123")
+    edupage.logout.assert_awaited_once_with()
+
+
+async def test_removal_keeps_a_session_a_sibling_entry_uses(hass: HomeAssistant):
+    """Two students on one EduPage account share a PHPSESSID.
+
+    Removing one entry must not invalidate the session the other still relies
+    on, or that entry starts failing with an expired session.
+    """
+    from custom_components.homeassistantedupage import async_remove_entry
+
+    removed = _entry(entry_id="entry_1", **{CONF_PHPSESSID: "shared"})
+    sibling = _entry(entry_id="entry_2", **{CONF_PHPSESSID: "shared"})
+
+    with (
+        _register(hass, removed, sibling),
+        patch("custom_components.homeassistantedupage.Edupage") as edupage_cls,
+    ):
+        await async_remove_entry(hass, removed)
+
+    edupage_cls.assert_not_called()
+
+
+async def test_removal_logs_out_when_a_sibling_has_a_different_session(
+    hass: HomeAssistant,
+):
+    """A sibling on the same school but its own session is not a blocker."""
+    from custom_components.homeassistantedupage import async_remove_entry
+
+    removed = _entry(entry_id="entry_1", **{CONF_PHPSESSID: "mine"})
+    sibling = _entry(entry_id="entry_2", **{CONF_PHPSESSID: "theirs"})
 
     edupage = MagicMock()
     edupage.login = AsyncMock()
     edupage.logout = AsyncMock()
 
-    with patch(
-        "custom_components.homeassistantedupage.Edupage", return_value=edupage
-    ) as edupage_cls:
-        await async_remove_entry(hass, _entry())
+    with (
+        _register(hass, removed, sibling),
+        patch("custom_components.homeassistantedupage.Edupage", return_value=edupage),
+    ):
+        await async_remove_entry(hass, removed)
 
-    edupage_cls.assert_called_once_with(hass=hass, sessionid="phpsess_123")
-    edupage.login.assert_awaited_once_with("user", "school", "phpsess_123")
+    edupage.logout.assert_awaited_once_with()
+
+
+async def test_removal_does_not_treat_itself_as_a_sibling(hass: HomeAssistant):
+    """The entry being removed must not block its own cleanup.
+
+    HA still lists the entry while `async_remove_entry` runs, so the guard has
+    to exclude it by entry_id rather than merely by being present.
+    """
+    from custom_components.homeassistantedupage import async_remove_entry
+
+    entry = _entry(entry_id="entry_1")
+
+    edupage = MagicMock()
+    edupage.login = AsyncMock()
+    edupage.logout = AsyncMock()
+
+    with (
+        _register(hass, entry),
+        patch("custom_components.homeassistantedupage.Edupage", return_value=edupage),
+    ):
+        await async_remove_entry(hass, entry)
+
     edupage.logout.assert_awaited_once_with()
 
 

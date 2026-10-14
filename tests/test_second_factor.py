@@ -425,6 +425,106 @@ async def test_countdown_does_not_block_a_typed_code(hass: HomeAssistant):
     assert result["step_id"] == "select_student"
 
 
+async def test_countdown_does_not_block_a_device_check(hass: HomeAssistant):
+    """An app confirmation is not a code request, so it is never suppressed."""
+    challenge = _challenge()
+    challenge.send_email_code.side_effect = RetryLaterException("wait", 60)
+    flow_id, _ = await _start(hass, challenge)
+
+    with patch(
+        "custom_components.homeassistantedupage.config_flow.Edupage",
+        return_value=_api(challenge),
+    ):
+        await hass.config_entries.flow.async_configure(
+            flow_id, user_input={"send_email_code": True}
+        )
+        challenge.is_confirmed.return_value = True
+        result = await hass.config_entries.flow.async_configure(
+            flow_id, user_input={"device_confirmed": True}
+        )
+
+    challenge.is_confirmed.assert_called_once_with()
+    assert result["step_id"] == "select_student"
+
+
+# ---------------------------------------------------------------------------
+# the cooldown is enforced, not merely displayed
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "action", ["send_email_code", "resend_notification"]
+)
+async def test_active_cooldown_suppresses_the_request(hass: HomeAssistant, action):
+    """A refused request must not be retried, or EduPage restarts the timer."""
+    challenge = _challenge()
+    getattr(challenge, action).side_effect = RetryLaterException("wait", 60)
+    flow_id, _ = await _start(hass, challenge)
+
+    with patch(
+        "custom_components.homeassistantedupage.config_flow.Edupage",
+        return_value=_api(challenge),
+    ):
+        first = await hass.config_entries.flow.async_configure(
+            flow_id, user_input={action: True}
+        )
+        assert first["errors"] == {}
+
+        # Retry while the countdown is still running.
+        again = await hass.config_entries.flow.async_configure(
+            flow_id, user_input={action: True}
+        )
+
+    # The second attempt is rejected locally, without touching the API again.
+    assert again["errors"] == {"base": "code_request_too_soon"}
+    assert getattr(challenge, action).call_count == 1
+    assert again["description_placeholders"]["retry_seconds"] > 0
+
+
+async def test_cooldown_blocks_a_different_action_too(hass: HomeAssistant):
+    """The cooldown covers both email and resend, whichever set it."""
+    challenge = _challenge()
+    challenge.send_email_code.side_effect = RetryLaterException("wait", 60)
+    flow_id, _ = await _start(hass, challenge)
+
+    with patch(
+        "custom_components.homeassistantedupage.config_flow.Edupage",
+        return_value=_api(challenge),
+    ):
+        await hass.config_entries.flow.async_configure(
+            flow_id, user_input={"send_email_code": True}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            flow_id, user_input={"resend_notification": True}
+        )
+
+    challenge.resend_notifications.assert_not_called()
+    assert result["errors"] == {"base": "code_request_too_soon"}
+
+
+async def test_cooldown_expires_and_requests_work_again(hass: HomeAssistant):
+    """Once the countdown passes, the action is allowed through again."""
+    challenge = _challenge()
+    challenge.send_email_code.side_effect = RetryLaterException("wait", 0)
+    flow_id, _ = await _start(hass, challenge)
+
+    with patch(
+        "custom_components.homeassistantedupage.config_flow.Edupage",
+        return_value=_api(challenge),
+    ):
+        first = await hass.config_entries.flow.async_configure(
+            flow_id, user_input={"send_email_code": True}
+        )
+        challenge.send_email_code.side_effect = None
+        second = await hass.config_entries.flow.async_configure(
+            flow_id, user_input={"send_email_code": True}
+        )
+
+    assert first["description_placeholders"]["retry_seconds"] == 0
+    assert second["errors"] == {}
+    assert challenge.send_email_code.call_count == 2
+
+
 # ---------------------------------------------------------------------------
 # action precedence
 # ---------------------------------------------------------------------------

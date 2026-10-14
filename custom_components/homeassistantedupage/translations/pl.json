@@ -6,7 +6,8 @@
       "invalid_auth": "Nieprawidłowe dane logowania.",
       "invalid_code": "Kod potwierdzający jest nieprawidłowy lub wygasł.",
       "captcha_required": "EduPage wymaga weryfikacji CAPTCHA. Spróbuj ponownie później lub sprawdź dane logowania.",
-      "not_confirmed": "Ta sesja nie została jeszcze zatwierdzona w aplikacji mobilnej EduPage. Otwórz aplikację i zatwierdź logowanie, a następnie spróbuj ponownie."
+      "not_confirmed": "Ta sesja nie została jeszcze zatwierdzona w aplikacji mobilnej EduPage. Otwórz aplikację i zatwierdź logowanie, a następnie spróbuj ponownie.",
+      "code_request_too_soon": "EduPage nie wyśle jeszcze kolejnego kodu. Spróbuj ponownie za {retry_seconds} sekund."
     },
     "step": {
       "user": {

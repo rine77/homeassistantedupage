@@ -26,6 +26,15 @@ from custom_components.homeassistantedupage.config_flow import _mask_email
 from custom_components.homeassistantedupage.const import DOMAIN
 
 
+# The two code-request actions, as (form key, TwoFactorLogin method). The form
+# key is singular for resend while the method is plural, so keep the pair
+# together rather than deriving one from the other.
+REQUEST_ACTIONS = [
+    ("send_email_code", "send_email_code"),
+    ("resend_notification", "resend_notifications"),
+]
+
+
 def _entry_data():
     return {"username": "user", "password": "pw", "subdomain": "school"}
 
@@ -359,14 +368,7 @@ async def test_device_confirmed_without_session_is_invalid(hass: HomeAssistant):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("action", "method"),
-    [
-        ("send_email_code", "send_email_code"),
-        # The form key is singular, the TwoFactorLogin method plural.
-        ("resend_notification", "resend_notifications"),
-    ],
-)
+@pytest.mark.parametrize(("action", "method"), REQUEST_ACTIONS)
 async def test_retry_later_starts_a_countdown(hass: HomeAssistant, action, method):
     challenge = _challenge()
     getattr(challenge, method).side_effect = RetryLaterException("wait", 42)
@@ -452,13 +454,13 @@ async def test_countdown_does_not_block_a_device_check(hass: HomeAssistant):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "action", ["send_email_code", "resend_notification"]
-)
-async def test_active_cooldown_suppresses_the_request(hass: HomeAssistant, action):
+@pytest.mark.parametrize(("action", "method"), REQUEST_ACTIONS)
+async def test_active_cooldown_suppresses_the_request(
+    hass: HomeAssistant, action, method
+):
     """A refused request must not be retried, or EduPage restarts the timer."""
     challenge = _challenge()
-    getattr(challenge, action).side_effect = RetryLaterException("wait", 60)
+    getattr(challenge, method).side_effect = RetryLaterException("wait", 60)
     flow_id, _ = await _start(hass, challenge)
 
     with patch(
@@ -477,7 +479,7 @@ async def test_active_cooldown_suppresses_the_request(hass: HomeAssistant, actio
 
     # The second attempt is rejected locally, without touching the API again.
     assert again["errors"] == {"base": "code_request_too_soon"}
-    assert getattr(challenge, action).call_count == 1
+    assert getattr(challenge, method).call_count == 1
     assert again["description_placeholders"]["retry_seconds"] > 0
 
 

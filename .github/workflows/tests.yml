@@ -25,10 +25,17 @@ jobs:
         with:
           python-version: "3.14"
 
+      # Temporary dependency for this draft; switch to the released SDK before merge.
+      - uses: actions/checkout@v7
+        with:
+          repository: michalmedvecky/edupage-api
+          ref: 6b80ba39504444397e6569f43874a81b1af6cbdc
+          path: .test-edupage-api
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest voluptuous-serialize pytest-homeassistant-custom-component edupage-api==0.13.3 unidecode
+          pip install pytest voluptuous-serialize pytest-homeassistant-custom-component .test-edupage-api unidecode
 
       - name: Run tests
         run: pytest tests -v

@@ -271,7 +271,7 @@ async def test_options_flow_stores_selected_subjects(
     )
 
     assert result["type"] is data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert config_entry.options == {CONF_SUBJECT_IDS: ["2"]}
+    assert config_entry.options == {CONF_SUBJECT_IDS: ["2"], "consultations_my_teachers": True, "participation_deadline_hours": 24, "convert_letter_grades": False, **{f"letter_grade_{letter}": value for letter, value in zip("abcdef", (1, 2, 3, 4, 5, 5))}}
 
 
 async def test_options_flow_allows_empty_selection(
@@ -293,7 +293,7 @@ async def test_options_flow_allows_empty_selection(
     )
 
     assert result["type"] is data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert config_entry.options == {CONF_SUBJECT_IDS: []}
+    assert config_entry.options == {CONF_SUBJECT_IDS: [], "consultations_my_teachers": True, "participation_deadline_hours": 24, "convert_letter_grades": False, **{f"letter_grade_{letter}": value for letter, value in zip("abcdef", (1, 2, 3, 4, 5, 5))}}
 
 async def test_options_update_listener_reloads_entry(
         hass: HomeAssistant,
@@ -308,3 +308,16 @@ async def test_options_update_listener_reloads_entry(
         await _async_update_listener(hass, config_entry)
 
     reload_mock.assert_awaited_once_with(config_entry.entry_id)
+
+async def test_options_flow_stores_custom_letter_conversion(hass, config_entry):
+    coordinator = MagicMock()
+    coordinator.data = {"subjects": []}
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {
+        CONF_SUBJECT_IDS: [], "convert_letter_grades": True, "letter_grade_f": 6,
+    })
+    assert result["type"] is data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert config_entry.options["convert_letter_grades"] is True
+    assert config_entry.options["letter_grade_a"] == 1
+    assert config_entry.options["letter_grade_f"] == 6

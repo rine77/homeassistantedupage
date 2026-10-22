@@ -25,6 +25,8 @@ EVENT_TIMETABLE_CHANGE = "timetable_change"
 EVENT_ARRIVAL_AT_SCHOOL = "arrival_at_school"
 EVENT_EDUPAGE = f"{DOMAIN}_event"
 
+from .participation_monitor import PARTICIPATION_EVENTS, ParticipationTracker
+
 EVENT_TYPES = [
     EVENT_NEW_GRADE,
     EVENT_NEW_HOMEWORK,
@@ -32,6 +34,7 @@ EVENT_TYPES = [
     EVENT_NEW_EXAM,
     EVENT_TIMETABLE_CHANGE,
     EVENT_ARRIVAL_AT_SCHOOL,
+    *PARTICIPATION_EVENTS,
 ]
 
 _TYPE_MAP = {
@@ -104,6 +107,9 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
             self._student_id, self._student_name
         )
         self._known_event_ids = self._notification_ids()
+        self._participation_tracker = ParticipationTracker()
+        from homeassistant.util import dt as dt_util
+        self._participation_tracker.update(coordinator, dt_util.now())
 
     def _device_id(self) -> str | None:
         """Return the Home Assistant device ID for this student."""
@@ -207,6 +213,14 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
 
     def _handle_coordinator_update(self) -> None:
         """Emit supported notifications that appeared since the last update."""
+        from homeassistant.util import dt as dt_util
+        for kind, attributes in self._participation_tracker.update(self.coordinator, dt_util.now()):
+            attributes = {**attributes, "student_id": self._student_id,
+                          "student_name": self._student_name,
+                          "entry_id": self.coordinator.config_entry.entry_id}
+            self._trigger_event(kind, attributes)
+            self.coordinator.hass.bus.async_fire(EVENT_EDUPAGE,
+                {"device_id": self._device_id(), "type": kind, **attributes})
         notifications = self._notifications()
         current_ids = self._notification_ids()
         event_triggered = False

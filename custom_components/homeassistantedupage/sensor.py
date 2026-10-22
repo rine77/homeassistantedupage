@@ -11,6 +11,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
+from .grade_helpers import subject_key, grade_subject_audit
+from .grade_average import average_summary, coordinator_mapping, completeness_attributes
 from .assignment_helpers import event_matches_student, event_recipient
 from .const import (
     CONF_STUDENT_ID,
@@ -127,7 +129,7 @@ def group_grades_by_subject(grades):
     """grouping grades based on subject_id."""
     grouped = defaultdict(list)
     for grade in grades:
-        grouped[grade.subject_id].append(grade)
+        grouped[subject_key(grade.subject_id)].append(grade)
     return grouped
 
 
@@ -152,6 +154,10 @@ async def async_setup_entry(
     )
 
     subjects = coordinator.data.get("subjects", [])
+    if _LOGGER.isEnabledFor(logging.DEBUG):
+        _LOGGER.debug("Grade subject options audit: student_id=%s %s", student_id, grade_subject_audit(
+            coordinator.data.get("grades", []), subjects, entry.options.get(CONF_SUBJECT_IDS)
+        ))
     selected_subject_ids = entry.options.get(CONF_SUBJECT_IDS)
 
     # Entries without this option predate subject selection and retain the
@@ -174,7 +180,7 @@ async def async_setup_entry(
     subject_unique_ids = set()
 
     for subject in subjects:
-        subject_grades = grades_by_subject.get(subject.subject_id, [])
+        subject_grades = grades_by_subject.get(subject_key(subject.subject_id), [])
 
         sensor = EduPageSubjectSensor(
             coordinator,
@@ -238,6 +244,8 @@ async def async_setup_entry(
 
     sensors.append(EduPageTextAssessmentSensor(coordinator, student_id, student_name))
 
+    for kind in ("open_registrations", "free_consultation_slots", "own_consultations", "next_consultation_block"):
+        sensors.append(EduPageParticipationSensor(coordinator, student_id, student_name, kind))
     async_add_entities(sensors, True)
 
 
@@ -536,7 +544,7 @@ class EduPageSubjectSensor(StateRestoringSensor):
         if self._subject_id is None:
             return self._grades
         return [
-            g for g in all_grades if getattr(g, "subject_id", None) == self._subject_id
+            g for g in all_grades if subject_key(getattr(g, "subject_id", None)) == subject_key(self._subject_id)
         ]
 
     @property
@@ -612,6 +620,8 @@ class EduPageSubjectSensor(StateRestoringSensor):
                 }
             )
         attributes["data_stale"] = self.data_stale
+        attributes.update(average_summary(current_grades, coordinator_mapping(self.coordinator)))
+        attributes.update(completeness_attributes(self.coordinator))
         attributes.update(self._text_attributes(attributes))
         return attributes
 
@@ -785,10 +795,9 @@ def _grade_numeric(grade_n):
         return None
 
 
-def _average(grades):
-    """Weighted-agnostic arithmetic mean of numeric grade values."""
-    values = [v for v in (_grade_numeric(g.grade_n) for g in grades) if v is not None]
-    return round(sum(values) / len(values), 2) if values else None
+def _average(grades, mapping=None):
+    """Weighted mean, optionally converting the configured school letters."""
+    return average_summary(grades, mapping)["grade_average"]
 
 
 class EduPageSubstitutionSensor(StateRestoringSensor):
@@ -951,7 +960,7 @@ class EduPageTermAverageSensor(StateRestoringSensor):
     @property
     def state(self):
         if self._data_is_fresh():
-            avg = _average(self._current_grades)
+            avg = _average(self._current_grades, coordinator_mapping(self.coordinator))
             return self._set_value(avg if avg is not None else "unknown")
         if self._last_value is not None:
             return self._last_value
@@ -965,7 +974,7 @@ class EduPageTermAverageSensor(StateRestoringSensor):
             by_subject[grade.subject_name or grade.subject_id].append(grade)
 
         subject_averages = {
-            str(subject): _average(subject_grades)
+            str(subject): _average(subject_grades, coordinator_mapping(self.coordinator))
             for subject, subject_grades in by_subject.items()
         }
 
@@ -975,7 +984,8 @@ class EduPageTermAverageSensor(StateRestoringSensor):
             "school_year": self._school_year,
             "term": self._term_key,
             "grade_count": len(grades),
-            "grade_average": _average(grades),
+            **average_summary(grades, coordinator_mapping(self.coordinator)),
+            **completeness_attributes(self.coordinator, "term_P1" if self._term_key == "first" else "term_P2"),
             "subject_averages": subject_averages,
             "data_stale": self.data_stale,
         }
@@ -1077,3 +1087,95 @@ def _text_assessment_attributes(grades, base_attributes=None):
     attributes["assessments_exposed"] = len(attributes["assessments"])
     attributes["assessments_truncated"] = len(attributes["assessments"]) < len(items)
     return attributes
+
+
+class EduPageParticipationSensor(StateRestoringSensor):
+    """Read-only summary; keep counts during outages and mark them stale."""
+
+    def __init__(self, coordinator, student_id, student_name, kind):
+        super().__init__(coordinator)
+        self.kind = kind
+        self._data_key = (
+            "registrations" if kind == "open_registrations" else "consultations"
+        )
+        titles = {
+            "open_registrations": "Open registrations and surveys",
+            "free_consultation_slots": "Available consultation slots",
+            "own_consultations": "Booked consultations",
+            "next_consultation_block": "Next consultation block",
+        }
+        self._attr_name = compact_entity_name(student_name, titles[kind])
+        self._attr_unique_id = f"edupage_{kind}_{student_id}"
+        self._attr_icon = "mdi:calendar-question"
+        if kind == "next_consultation_block":
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        else:
+            from homeassistant.components.sensor import SensorStateClass
+
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_device_info = student_device_info(student_id, student_name)
+        self._details = []
+        self._blocks = []
+
+    def _coerce_restored(self, raw_state):
+        if self.kind == "next_consultation_block":
+            return dt_util.parse_datetime(raw_state) if raw_state else None
+        try:
+            return int(raw_state)
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def state(self):
+        from .participation import (
+            available_slots,
+            block_summaries,
+            consultation_item,
+            registration_open,
+            registration_summary,
+        )
+        from .const import CONF_SUBDOMAIN
+
+        if (
+            not self._data_is_fresh()
+            or self.coordinator.data.get(self._data_key) is None
+        ):
+            return self._last_value
+        now = dt_util.now()
+        if self.kind == "open_registrations":
+            actions = self.coordinator.data["registrations"]
+            subdomain = self.coordinator.config_entry.data[CONF_SUBDOMAIN]
+            self._details = [registration_summary(a, subdomain) for a in actions[:20]]
+            return self._set_value(sum(registration_open(a, now) for a in actions))
+        data = self.coordinator.data["consultations"]
+        overview = data["overview"]
+        blocks = {b.consultation_id: b for b in overview.consultations}
+        self._blocks = block_summaries(data, self.coordinator, now)
+        if self.kind == "next_consultation_block":
+            next_block = next(
+                (b for b in self._blocks if dt_util.parse_datetime(b["start"]) > now),
+                None,
+            )
+            self._details = [next_block] if next_block else []
+            self._last_value = (
+                dt_util.parse_datetime(next_block["start"]) if next_block else None
+            )
+            return self._last_value
+        if self.kind == "free_consultation_slots":
+            items = available_slots(self.coordinator, now)
+        else:
+            items = [
+                r for r in overview.reservations if r.starts_at and r.starts_at > now
+            ]
+        items.sort(key=lambda item: item.starts_at)
+        self._details = [consultation_item(item, blocks) for item in items[:20]]
+        return self._set_value(len(items))
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "data_stale": self.data_stale,
+            "items": self._details,
+            "blocks": self._blocks[:20],
+            "items_limit": 20,
+        }

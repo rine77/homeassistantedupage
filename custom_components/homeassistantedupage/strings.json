@@ -1,79 +1,155 @@
 {
-  "config": {
-    "flow_title": "EduPage Setup Flow",
-    "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "invalid_code": "The confirmation code is invalid or has expired.",
-      "captcha_required": "EduPage is asking for a CAPTCHA. Try again later or check your credentials."
+    "config": {
+        "flow_title": "EduPage Setup Flow",
+        "error": {
+            "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+            "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+            "invalid_code": "The confirmation code is invalid or has expired.",
+            "captcha_required": "EduPage is asking for a CAPTCHA. Try again later or check your credentials."
+        },
+        "step": {
+            "user": {
+                "title": "[%key:common::config_flow::description%]",
+                "description": "Enter your EduPage username, password and school subdomain.",
+                "data": {
+                    "username": "[%key:common::config_flow::data::username%]",
+                    "password": "[%key:common::config_flow::data::password%]",
+                    "subdomain": "Subdomain"
+                }
+            },
+            "two_factor": {
+                "title": "Two-Factor Authentication",
+                "description": "A confirmation in the EduPage mobile app is required. Enter the confirmation code shown there.",
+                "data": {
+                    "two_factor_code": "Confirmation code"
+                }
+            },
+            "select_student": {
+                "title": "Select Student",
+                "description": "Choose which student this integration should track.",
+                "data": {
+                    "student": "Student"
+                }
+            },
+            "reconfigure": {
+                "title": "Re-authenticate EduPage",
+                "description": "Login again to refresh the expired session. If 2FA is enabled, enter the confirmation code from the EduPage app.",
+                "data": {
+                    "two_factor_code": "Confirmation code"
+                }
+            },
+            "reconfigure_code": {
+                "title": "Two-Factor Authentication",
+                "description": "Enter the confirmation code shown in the EduPage mobile app.",
+                "data": {
+                    "two_factor_code": "Confirmation code"
+                }
+            }
+        },
+        "abort": {
+            "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+            "no_students_found": "No students were found on this account.",
+            "reconfigured": "Successfully updated the stored session.",
+            "reconfigure_failed": "Re-authentication failed: {error}",
+            "reauth_unsuccessful": "Re-authentication unsuccessful: {error}",
+            "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
+        }
     },
-    "step": {
-      "user": {
-        "title": "[%key:common::config_flow::description%]",
-        "description": "Enter your EduPage username, password and school subdomain.",
-        "data": {
-          "username": "[%key:common::config_flow::data::username%]",
-          "password": "[%key:common::config_flow::data::password%]",
-          "subdomain": "Subdomain"
+    "options": {
+        "step": {
+            "init": {
+                "title": "Select subjects",
+                "description": "Select the subjects for which grade sensors should be created. Other EduPage sensors are not affected.",
+                "data": {
+                    "subject_ids": "Subjects",
+                    "consultations_my_teachers": "Consultations only with my child’s teachers",
+                    "participation_deadline_hours": "Deadline warning (hours)",
+                    "convert_letter_grades": "Convert letter grades for averages",
+                    "letter_grade_a": "Numeric value for grade A",
+                    "letter_grade_b": "Numeric value for grade B",
+                    "letter_grade_c": "Numeric value for grade C",
+                    "letter_grade_d": "Numeric value for grade D",
+                    "letter_grade_e": "Numeric value for grade E",
+                    "letter_grade_f": "Numeric value for grade F"
+                }
+            }
         }
-      },
-      "two_factor": {
-        "title": "Two-Factor Authentication",
-        "description": "A confirmation in the EduPage mobile app is required. Enter the confirmation code shown there.",
-        "data": {
-          "two_factor_code": "Confirmation code"
-        }
-      },
-      "select_student": {
-        "title": "Select Student",
-        "description": "Choose which student this integration should track.",
-        "data": {
-          "student": "Student"
-        }
-      },
-      "reconfigure": {
-        "title": "Re-authenticate EduPage",
-        "description": "Login again to refresh the expired session. If 2FA is enabled, enter the confirmation code from the EduPage app.",
-        "data": {
-          "two_factor_code": "Confirmation code"
-        }
-      },
-      "reconfigure_code": {
-        "title": "Two-Factor Authentication",
-        "description": "Enter the confirmation code shown in the EduPage mobile app.",
-        "data": {
-          "two_factor_code": "Confirmation code"
-        }
-      }
     },
-    "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
-      "no_students_found": "No students were found on this account.",
-      "reconfigured": "Successfully updated the stored session.",
-      "reconfigure_failed": "Re-authentication failed: {error}",
-      "reauth_unsuccessful": "Re-authentication unsuccessful: {error}",
-      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Select subjects",
-        "description": "Select the subjects for which grade sensors should be created. Other EduPage sensors are not affected.",
-        "data": {
-          "subject_ids": "Subjects"
+    "device_automation": {
+        "trigger_type": {
+            "new_grade": "A new grade was received",
+            "new_homework": "New homework was received",
+            "new_message": "A new message was received",
+            "new_exam": "A new exam was received",
+            "timetable_change": "A timetable change was received",
+            "arrival_at_school": "An arrival at school was recorded",
+            "consultation_block_published": "Consultation block published",
+            "consultation_booked": "Consultation booked",
+            "consultation_booking_opened": "Consultation booking opened",
+            "consultation_changed": "Consultation changed",
+            "consultation_cancelled": "Consultation cancelled",
+            "consultation_booking_closing": "Consultation booking closing",
+            "registration_opened": "Registration opened",
+            "registration_deadline_soon": "Registration deadline soon"
         }
-      }
+    },
+    "exceptions": {
+        "consultation_rejected": {
+            "message": "EduPage rejected the request. Check booking rules on its website."
+        },
+        "slot_taken": {
+            "message": "This slot is no longer free."
+        },
+        "booking_closed": {
+            "message": "The booking window is closed."
+        },
+        "booking_limit": {
+            "message": "An own booking exists in this block or a booking limit was reached."
+        },
+        "booking_not_owned": {
+            "message": "The own booking was not found or cancellation is ambiguous."
+        },
+        "booking_uncertain": {
+            "message": "The write outcome could not be verified. Check EduPage before retrying."
+        },
+        "entry_not_loaded": {
+            "message": "The selected child entry is not loaded."
+        },
+        "session_expired": {
+            "message": "The session expired. Sign in again."
+        },
+        "invalid_start": {
+            "message": "Use an ISO datetime including a timezone."
+        },
+        "select_consultation": {
+            "message": "Select a consultation first."
+        },
+        "note_unsupported": {
+            "message": "Participant notes are not supported by the inspected booking protocol."
+        },
+        "slot_not_found": {
+            "message": "This time does not exist in this consultation block."
+        },
+        "unrelated_teacher": {
+            "message": "The teacher is not verified for this child. Check the child entry, or explicitly set allow_unrelated_teacher."
+        }
+    },
+    "entity": {
+        "select": {
+            "consultation_slot": {
+                "name": "Available consultation"
+            },
+            "consultation_booking": {
+                "name": "Booked consultation"
+            }
+        },
+        "button": {
+            "book_consultation": {
+                "name": "Book selected consultation"
+            },
+            "cancel_consultation": {
+                "name": "Cancel selected consultation"
+            }
+        }
     }
-  },
-  "device_automation": {
-    "trigger_type": {
-      "new_grade": "A new grade was received",
-      "new_homework": "New homework was received",
-      "new_message": "A new message was received",
-      "new_exam": "A new exam was received",
-      "timetable_change": "A timetable change was received",
-      "arrival_at_school": "An arrival at school was recorded"
-    }
-  }
 }

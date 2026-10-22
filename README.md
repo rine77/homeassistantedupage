@@ -47,8 +47,8 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 
 ## Installation
 
-Version 0.8.0 and later require Home Assistant 2023.11.0 or newer because the
-integration provides a native to-do entity.
+This development version requires Home Assistant 2026.10.0 or newer. Earlier
+integration versions may support older Home Assistant releases.
 
 ### HACS
 

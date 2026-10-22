@@ -4,6 +4,7 @@ from edupage_api import Edupage as APIEdupage
 from edupage_api import LoginSession
 from edupage_api.exceptions import (
     BadCredentialsException,
+    ConsultationError,
     InsufficientPermissionsException,
     NotParentException,
 )
@@ -99,11 +100,162 @@ class Edupage:
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error updating get_classes() data from API: {e}")
 
-    async def get_grades(self):
+    def _grade_read(self, student, method, *args):
+        """Grade endpoints implicitly use the server's selected child."""
+        switched = False
         try:
-            return await self.hass.async_add_executor_job(self.api.get_grades)
-        except Exception as e:  # noqa: BLE001
-            raise UpdateFailed(f"EDUPAGE error updating get_grades() data from API: {e}")
+            if student is not None:
+                try:
+                    self.api.switch_to_child(student)
+                    switched = True
+                except NotParentException:
+                    pass
+            result = getattr(self.api, method)(*args)
+            report = getattr(self.api, "grade_read_report", None)
+            if isinstance(report, dict):
+                if not hasattr(self, "grade_reports"):
+                    self.grade_reports = {}
+                key = "grades" if method == "get_grades" else f"term_{args[1].value}"
+                self.grade_reports[key] = dict(report)
+            return result
+        finally:
+            if switched:
+                self.api.switch_to_parent()
+
+    def _log_grade_failure(self, operation, student, error):
+        """Record the concrete cause without cookies, login identity or payloads."""
+        from importlib.metadata import PackageNotFoundError, version
+        from pathlib import PurePath
+        try:
+            library_version = version("edupage-api")
+        except PackageNotFoundError:
+            library_version = "source checkout"
+        secrets = [self.sessionid, getattr(self.api, "username", None)]
+        chain = []
+        seen = set()
+        root = error
+        while root is not None and id(root) not in seen and len(chain) < 4:
+            seen.add(id(root))
+            message = str(root)
+            for secret in secrets:
+                if isinstance(secret, str) and secret:
+                    message = message.replace(secret, "[redacted]")
+            chain.append(f"{type(root).__name__}: {message[:512]}")
+            next_error = root.__cause__ or root.__context__
+            if next_error is None:
+                break
+            root = next_error
+        trace = root.__traceback__ if root else None
+        while trace and trace.tb_next:
+            trace = trace.tb_next
+        origin = (f"{PurePath(trace.tb_frame.f_code.co_filename).name}:"
+                  f"{trace.tb_lineno} {trace.tb_frame.f_code.co_name}") if trace else "unknown"
+        summary = {"library_version": library_version, "cause": " <- ".join(chain), "origin": origin}
+        if not hasattr(self, "grade_errors"):
+            self.grade_errors = {}
+        self.grade_errors[operation] = summary
+        _LOGGER.warning("EduPage %s failed (student=%s, library=%s): %s; origin=%s",
+            operation, getattr(student, "person_id", "current"), library_version, summary["cause"], origin)
+
+    async def get_grades(self, student=None):
+        try:
+            result = await self.hass.async_add_executor_job(self._grade_read, student, "get_grades")
+            getattr(self, "grade_errors", {}).pop("get_grades", None)
+            return result
+        except Exception as exc:
+            await self.hass.async_add_executor_job(self._log_grade_failure, "get_grades", student, exc)
+            raise UpdateFailed("EduPage get_grades failed; see the detailed grade diagnostic") from exc
+
+    def _read_participation(self, student, method, timezone_name, params=None):
+        """Keep each read in the selected child's context, restoring the parent."""
+        switched = False
+        try:
+            try:
+                self.api.switch_to_child(student)
+                switched = True
+            except NotParentException:
+                pass
+            if method in ("book_consultation_slot", "cancel_consultation"):
+                params = dict(params or {})
+                require_related = params.pop("require_related_teacher", False)
+                if method == "book_consultation_slot" and require_related:
+                    # Read in THIS child's context, not from another entry's cache.
+                    current = self.api.get_consultations(timezone_name)
+                    block = next((b for b in current.consultations
+                                  if b.consultation_id == str(params["consultation_id"])), None)
+                    related = block is not None and block.teaches_student is True
+                    if block is not None and not related:
+                        try:
+                            related = any(
+                                abs(int(c.class_id)) == abs(int(student.class_id))
+                                and any(str(t.person_id).lstrip("-") == block.teacher_id.lstrip("-")
+                                        for t in (c.homeroom_teachers or []))
+                                for c in self.api.get_classes() or [])
+                        except Exception:
+                            related = False
+                    if not related:
+                        error = ConsultationError("Teacher is not verified for the selected child")
+                        error.code = "unrelated_teacher"
+                        raise error
+                return getattr(self.api, method)(**params, timezone_name=timezone_name)
+            if method == "registrations":
+                return self.api.get_registrations(timezone_name)
+            overview = self.api.get_consultations(timezone_name)
+            from datetime import datetime, timezone
+            # Cached school directories are read while the selected child is active.
+            try:
+                class_id = abs(int(student.class_id))
+                classes = self.api.get_classes() or []
+                teachers = {str(t.person_id).lstrip("-") for c in classes
+                            if abs(int(c.class_id)) == class_id
+                            for t in (c.homeroom_teachers or [])}
+            except Exception:  # Optional directory enrichment must not discard slots.
+                teachers = set()
+            now = datetime.now(timezone.utc)
+            slots = []
+            loaded = []
+            # Different blocks may overlap: their IDs must remain distinct.
+            for block in overview.consultations:
+                block.is_class_teacher = block.teacher_id.lstrip("-") in teachers
+                if block.is_class_teacher:
+                    block.teaches_student = True
+                # No availability requests for past blocks or closed/not-yet-open windows.
+                if ((block.ends_at and block.ends_at <= now)
+                        or (block.booking_opens_at and block.booking_opens_at > now)
+                        or (block.booking_closes_at and block.booking_closes_at < now)):
+                    continue
+                slots.extend(self.api.get_consultation_slots(block.consultation_id, timezone_name))
+                loaded.append(block.consultation_id)
+            return {"overview": overview, "slots": slots, "slots_loaded": loaded}
+        finally:
+            if switched:
+                self.api.switch_to_parent()
+
+    async def get_registrations(self, student):
+        """Read assigned actions/surveys without submitting responses."""
+        timezone_name = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Prague")
+        try:
+            return await self.hass.async_add_executor_job(
+                self._read_participation, student, "registrations", timezone_name
+            )
+        except Exception as exc:
+            raise UpdateFailed("EduPage registrations could not be read") from exc
+
+    async def get_consultations(self, student):
+        """Read offered slots and own bookings without making reservations."""
+        timezone_name = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Prague")
+        try:
+            return await self.hass.async_add_executor_job(
+                self._read_participation, student, "consultations", timezone_name
+            )
+        except Exception as exc:
+            raise UpdateFailed("EduPage consultations could not be read") from exc
+
+    async def consultation_action(self, student, method, **params):
+        """Explicit actions only; caller holds the same lock used by polling."""
+        timezone_name = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Prague")
+        return await self.hass.async_add_executor_job(
+            self._read_participation, student, method, timezone_name, params)
 
     def _get_text_grades(self, student):
         """Read in the selected child's context and restore the parent."""
@@ -270,16 +422,16 @@ class Edupage:
                 f"EDUPAGE error updating get_school_year() data from API: {e}"
             )
 
-    async def get_grades_for_term(self, year: int, term):
-        """Returns grades for a specific school term."""
+    async def get_grades_for_term(self, year: int, term, student=None):
+        operation = f"get_grades_for_term:{year}:{getattr(term, 'value', term)}"
         try:
-            return await self.hass.async_add_executor_job(
-                self.api.get_grades_for_term, year, term
-            )
-        except Exception as e:  # noqa: BLE001
-            raise UpdateFailed(
-                f"EDUPAGE error updating get_grades_for_term() data from API: {e}"
-            )
+            result = await self.hass.async_add_executor_job(
+                self._grade_read, student, "get_grades_for_term", year, term)
+            getattr(self, "grade_errors", {}).pop(operation, None)
+            return result
+        except Exception as exc:
+            await self.hass.async_add_executor_job(self._log_grade_failure, operation, student, exc)
+            raise UpdateFailed("EduPage get_grades_for_term failed; see the detailed grade diagnostic") from exc
 
     # ------------------------------------------------------------------
     # Action methods used by services

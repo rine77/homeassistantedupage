@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_USERNAME
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
@@ -14,6 +15,7 @@ import voluptuous as vol
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .homeassistant_edupage import Edupage, EdupageSessionExpired
+from .grade_helpers import grade_subject_audit
 from .entity_helpers import student_device_info
 from edupage_api.lunches import MealType
 from edupage_api.grades import Term
@@ -45,7 +47,7 @@ def _class_ids_match(first, second) -> bool:
         return str(first) == str(second)
 
 
-async def _collect_data(edupage, student, student_name):
+async def _collect_data(edupage, student, student_name, *, include_consultations=True):
     """Gather all EduPage data sections for a student.
 
     Each optional data source is fetched independently. A failure in one
@@ -75,6 +77,7 @@ async def _collect_data(edupage, student, student_name):
                 None,
             )
             if student_class is not None:
+                student_data["class_teacher_ids"] = [str(t.person_id).lstrip("-") for t in (getattr(student_class, "homeroom_teachers", None) or [])]
                 student_data["class_names"] = list(
                     dict.fromkeys(
                         value
@@ -86,13 +89,13 @@ async def _collect_data(edupage, student, student_name):
                     )
                 )
         except Exception as e:  # noqa: BLE001
-            _LOGGER.warning("get_classes failed: %s", e)
+            _LOGGER.warning("get_classes failed: %s", e, exc_info=True)
 
     try:
-        grades = await edupage.get_grades()
+        grades = await edupage.get_grades(student)
         data_ok["grades"] = True
     except Exception as e:  # noqa: BLE001
-        _LOGGER.warning("get_grades failed: %s", e)
+        _LOGGER.warning("get_grades failed: %s", e, exc_info=True)
         grades = []
         data_ok["grades"] = False
 
@@ -109,15 +112,20 @@ async def _collect_data(edupage, student, student_name):
         subjects = await edupage.get_subjects()
         data_ok["subjects"] = True
     except Exception as e:  # noqa: BLE001
-        _LOGGER.warning("get_subjects failed: %s", e)
+        _LOGGER.warning("get_subjects failed: %s", e, exc_info=True)
         subjects = []
         data_ok["subjects"] = False
+
+    if data_ok["grades"] and data_ok["subjects"] and _LOGGER.isEnabledFor(logging.DEBUG):
+        _LOGGER.debug("Grade subject audit: student_id=%s %s", student.person_id, grade_subject_audit(
+            grades, subjects, None
+        ))
 
     try:
         notifications = await edupage.get_notifications()
         data_ok["notifications"] = True
     except Exception as e:  # noqa: BLE001
-        _LOGGER.warning("get_notifications failed: %s", e)
+        _LOGGER.warning("get_notifications failed: %s", e, exc_info=True)
         notifications = []
         data_ok["notifications"] = False
 
@@ -137,6 +145,7 @@ async def _collect_data(edupage, student, student_name):
                 "Failed to fetch timetable data for %s: %s",
                 current_date,
                 e,
+                exc_info=True,
             )
             break
         timetable_ok = True
@@ -165,6 +174,7 @@ async def _collect_data(edupage, student, student_name):
                 "Failed to fetch meals data for %s: %s",
                 current_date,
                 e,
+                exc_info=True,
             )
             continue
         canteen_ok = True
@@ -183,7 +193,7 @@ async def _collect_data(edupage, student, student_name):
         data_ok["timetable_changes"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning(
-            "get_timetable_changes failed for %s: %s", today, e
+            "get_timetable_changes failed for %s: %s", today, e, exc_info=True
         )
         timetable_changes = []
         data_ok["timetable_changes"] = False
@@ -193,7 +203,7 @@ async def _collect_data(edupage, student, student_name):
         data_ok["missing_teachers"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning(
-            "get_missing_teachers failed for %s: %s", today, e
+            "get_missing_teachers failed for %s: %s", today, e, exc_info=True
         )
         missing_teachers = []
         data_ok["missing_teachers"] = False
@@ -204,7 +214,7 @@ async def _collect_data(edupage, student, student_name):
         )
         data_ok["next_ringing"] = True
     except Exception as e:  # noqa: BLE001
-        _LOGGER.warning("get_next_ringing_time failed: %s", e)
+        _LOGGER.warning("get_next_ringing_time failed: %s", e, exc_info=True)
         next_ringing = None
         data_ok["next_ringing"] = False
 
@@ -222,22 +232,40 @@ async def _collect_data(edupage, student, student_name):
                 grades_per_term[
                     term_key
                 ] = await edupage.get_grades_for_term(
-                    school_year, term_enum
+                    school_year, term_enum, student
                 )
             except Exception as e:  # noqa: BLE001
                 _LOGGER.warning(
-                    "get_grades_for_term(%s) failed: %s", term_key, e
+                    "get_grades_for_term(%s) failed: %s", term_key, e, exc_info=True
                 )
                 grades_per_term[term_key] = []
                 all_terms_ok = False
         data_ok["grades_per_term"] = all_terms_ok
     except Exception as e:  # noqa: BLE001
-        _LOGGER.warning("get_school_year failed: %s", e)
+        _LOGGER.warning("get_school_year failed: %s", e, exc_info=True)
         school_year = None
         data_ok["school_year"] = False
 
+    participation = {}
+    for section in ("registrations", "consultations"):
+        if section == "consultations" and not include_consultations:
+            participation[section] = None
+            data_ok[section] = False
+            continue
+        try:
+            participation[section] = await getattr(edupage, "get_" + section)(student)
+            data_ok[section] = True
+        except Exception as exc:  # Optional sources must not break timetable/grades.
+            _LOGGER.warning("%s failed (%s)", section, type(exc).__name__, exc_info=True)
+            participation[section] = None
+            data_ok[section] = False
+
+    _enrich_consultations(participation.get("consultations"), student_data, timetable_data)
+
     return {
+        **participation,
         "student": student_data,
+        "grade_reports": dict(edupage.grade_reports) if isinstance(getattr(edupage, "grade_reports", None), dict) else {},
         "grades": grades,
         "text_grades": text_grades,
         "subjects": subjects,
@@ -253,6 +281,41 @@ async def _collect_data(edupage, student, student_name):
         "data_ok": data_ok,
         "last_updated": datetime.now().isoformat(),
     }
+
+def _enrich_consultations(consultations, student_data, timetable_data):
+    """Add timetable/class-directory relationships without further requests."""
+    if isinstance(consultations, dict) and consultations.get("overview"):
+        teacher_ids = {str(t.person_id).lstrip("-") for lessons in timetable_data.values()
+                       for lesson in lessons for t in (getattr(lesson, "teachers", None) or [])}
+        class_teacher_ids = set(student_data.get("class_teacher_ids", []))
+        for block in consultations["overview"].consultations:
+            block.is_class_teacher = block.teacher_id.lstrip("-") in class_teacher_ids or block.is_class_teacher
+            if block.is_class_teacher or block.teacher_id.lstrip("-") in teacher_ids:
+                block.teaches_student = True
+
+
+async def _load_startup_consultations(coordinator, student):
+    """Fetch slow slot lists outside config-entry setup under the shared lock."""
+    async with coordinator.fetch_lock:
+        pending = asyncio.create_task(coordinator.edupage.get_consultations(student))
+        try:
+            # Executor work cannot be cancelled midway through a child switch.
+            consultations = await asyncio.shield(pending)
+        except asyncio.CancelledError:
+            try:
+                await pending
+            except Exception:
+                _LOGGER.warning("Cancelled consultation read failed", exc_info=True)
+            raise
+        except Exception:
+            _LOGGER.warning("Background consultations failed", exc_info=True)
+            return
+        data = dict(coordinator.data or {})
+        _enrich_consultations(consultations, data.get("student", {}), data.get("timetable", {}))
+        data["consultations"] = consultations
+        data["data_ok"] = {**data.get("data_ok", {}), "consultations": True}
+        coordinator.async_set_updated_data(data)
+
 
 async def _async_update_listener(
         hass: HomeAssistant,
@@ -318,10 +381,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("INIT session load failed: %s", e)
         return False
 
-    fetch_lock = asyncio.Lock()
+    # Separate entries can share the same server session. Serialize context
+    # switches across those entries as well as between polling and actions.
+    import hashlib
+    lock_key = hashlib.sha256(f"{subdomain}:{phpsessid}".encode()).hexdigest()
+    session_locks = hass.data.setdefault(f"{DOMAIN}_session_locks", {})
+    fetch_lock = session_locks.setdefault(lock_key, asyncio.Lock())
+
+    first_fetch = True
+    startup_student = None
 
     async def fetch_data():
         """Fetch timetable, canteen and notification data for the student."""
+        nonlocal first_fetch, startup_student
         _LOGGER.debug("INIT called fetch_data")
 
         async with fetch_lock:
@@ -342,7 +414,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 student_name = student.name or stored_student_name or str(student.person_id)
 
-                return await _collect_data(edupage, student, student_name)
+                data = await _collect_data(edupage, student, student_name,
+                                           include_consultations=not first_fetch)
+                startup_student = student
+                first_fetch = False
+                return data
 
             except EdupageSessionExpired as e:
                 _LOGGER.error("INIT session expired during update: %s", e)
@@ -386,11 +462,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     await hass.config_entries.async_forward_entry_setups(
-        entry, ["calendar", "sensor", "event", "todo"]
+        entry, ["calendar", "sensor", "event", "todo", "select", "button"]
     )
     _LOGGER.debug("INIT forwarded")
 
     await _setup_services(hass)
+    from .consultation_services import async_setup_services
+    from .participation_monitor import setup_refresh_schedule
+    await async_setup_services(hass)
+    setup_refresh_schedule(coordinator, entry)
+    if startup_student is not None:
+        @callback
+        def load_consultations_after_start(_hass):
+            task = hass.async_create_background_task(
+                _load_startup_consultations(coordinator, startup_student),
+                f"EduPage consultations {entry.entry_id}",
+            )
+            entry.async_on_unload(task.cancel)
+
+        entry.async_on_unload(async_at_started(hass, load_consultations_after_start))
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -585,7 +675,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_results = await asyncio.gather(
         *(
             hass.config_entries.async_forward_entry_unload(entry, platform)
-            for platform in ("calendar", "sensor", "event", "todo")
+            for platform in ("calendar", "sensor", "event", "todo", "select", "button")
         )
     )
     unload_ok = all(unload_results)

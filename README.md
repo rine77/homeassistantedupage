@@ -47,8 +47,8 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 
 ## Installation
 
-Version 0.8.0 and later require Home Assistant 2023.11.0 or newer because the
-integration provides a native to-do entity.
+This development version requires Home Assistant 2026.10.0 or newer. Earlier
+integration versions may support older Home Assistant releases.
 
 ### HACS
 
@@ -645,3 +645,124 @@ Thanks to everyone who has contributed code, testing, translations, reports, and
 ## License
 
 See the repository's [license file](LICENSE) for details.
+
+## Registrations, surveys and consultations (development)
+
+Requires the companion unpublished edupage-api extension. Before an upstream
+release, change the manifest pin to the actual library release containing it.
+Local dev ZIPs include a matching wheel and a separate /config file requirement;
+the upstream manifest is intentionally unchanged until that package is released.
+
+Four sensors expose open actions/surveys, available consultation slots, future
+own bookings, and the next consultation block. Slot and booking summaries include
+teacher, start/end, slot duration, block note, deadline, teaching relation and
+class-teacher flag. `blocks` includes full blocks with free_count=0; null means
+availability has not been fetched (for example before booking opens). Count
+sensors have state_class measurement. Lists contain at most 20 summaries; counts
+include all fetched entries. Action summaries include opens_at, open and
+needs_action. The latter signals missing selections, a temporary selection or
+outstanding required parent confirmation; it cannot validate every school's
+questionnaire completion rules.
+
+Options → Consultations only with my child's teachers defaults to enabled.
+Teaching relation comes from EduPage's coUci mapping, with timetable and class
+teacher enrichment. Unknown teachers are excluded in this mode; switch it off to
+inspect all offered blocks. Own bookings remain visible regardless of this filter.
+School timestamps use HA's configured timezone. Availability is a polling snapshot.
+
+The device also provides two selects (available slot, existing own booking) and
+two buttons (book selected consultation, cancel selected consultation). Selecting
+only changes the local choice. Pressing a button explicitly performs a real
+server write. An own consultation calendar provides standard calendar triggers
+for reminders; events include teacher, slot duration and block note.
+
+### First test safely with dry_run
+
+Use Developer tools → Actions. Entry ID is required to identify the child; copy
+start and consultation_id from a slot summary. Both services default to dry_run
+true. A dry run does not create a temporary reservation or submit confirmation.
+
+```yaml
+action: homeassistantedupage.book_consultation
+data:
+  entry_id: YOUR_CHILD_ENTRY_ID
+  consultation_id: "3"
+  start: "2026-11-10T13:30:00+01:00"
+  dry_run: true
+```
+
+Set dry_run to false only for an intended real booking. Response data includes
+visit_id, teacher_name, start and end. To cancel, call
+homeassistantedupage.cancel_consultation with entry_id, visit_id and dry_run.
+The booking service checks fresh slot eligibility and verifies confirmation.
+Cancellation checks ownership and refuses ambiguous blocks. No automatic write
+retry is made on timeout/uncertain confirmation; inspect EduPage before retrying.
+Notes are currently unsupported by the inspected server protocol, so a nonempty
+note fails explicitly instead of being silently ignored.
+
+### Automation events and refresh
+
+The existing event entity/device triggers add consultation_block_published,
+consultation_booked, consultation_booking_opened, consultation_changed,
+consultation_cancelled, consultation_booking_closing, registration_opened and
+registration_deadline_soon. Attributes include student_id and entry_id.
+
+Events compare fresh snapshots only. The first successful snapshot is a baseline
+and is not replayed as notifications after startup. consultation_cancelled means
+a future own booking disappeared outside a successful HA cancellation; this does
+not prove the school itself cancelled it. consultation_changed detects a changed
+time/block under the same visit ID. A changed visit ID appears as disappearance
+and addition, since the server provides no reliable link between them.
+
+Deadline warnings default to 24 hours (configurable 1–168). Reads are scheduled at
+booking openings and warning thresholds. Polling runs every 10 minutes during
+relevant booking windows, otherwise every 30 minutes to preserve existing grade
+and timetable freshness. Closed/not-yet-open/past blocks skip slot requests;
+all blocks remain in the overview. Sessions are deliberately not parallelized:
+parent-child context switches are protected by a shared session lock.
+
+Build your dashboard and phone notification automations from these entities;
+no notifications are sent by the integration itself. No bookings occur on polling,
+startup, selection, or opening a dashboard.
+
+Development testing: PYTHONPATH=../edupage-api python -m pytest tests.
+Read data was tested on two children at one school. All booking/cancellation tests
+are synthetic; perform the first live booking only for an actual intended visit.
+
+### Booking safeguards and grade completeness
+
+When the child-teacher filter is enabled, book_consultation rechecks the offered
+teacher in the selected child's context before even a dry run. Only an explicit
+allow_unrelated_teacher=true overrides this check for a single service call.
+Unknown relations fail closed. Turning the teacher filter off allows all teachers.
+Missing times report slot_not_found; occupied existing times report slot_taken.
+Select labels use numeric dates, slot end, block end and block ID to distinguish
+overlapping consultation blocks.
+
+Grade reads select and restore the configured child. Standalone marks with
+udalostid=0 use their own grade ID, subject, teacher, date and value. They are not
+assigned an invented school-event ID. Subject and term sensors expose
+grades_received_total, grades_skipped_total and grades_complete. These counts
+refer to the whole child/term response, since incomplete rows may lack a subject.
+Unknown completeness is represented by null. Skipped rows log their field names
+and reason, without grade values. Load warnings retain their traceback.
+
+### Optional letter-grade averages
+
+Options provides an opt-in conversion of A–F for weighted averages. The defaults
+are A=1, B=2, C=3, D=4, E=5, F=5; each letter's value can be changed for your school.
+Conversion is disabled by default. Original grade values remain unchanged.
+Subject sensors expose grade_average, and term sensors also expose subject_averages.
+The grade_average_converted attribute identifies an average including letters;
+grade_average_method is weighted. Missing weights default to 1; nonpositive or
+invalid weights are excluded. (NESPLNĚNO), unknown symbols and nonfinite values
+are excluded from averages, while remaining visible as grades.
+
+### Startup
+
+The first coordinator refresh defers consultation reads until HA has started.
+Consultation entities remain unavailable until their first successful read.
+The background read preserves existing grades, uses the shared session lock and
+is cancelled on unload. An in-progress child read completes restoration before
+releasing that lock. Timetable/grade source work can still take more than ten
+seconds; this change only removes consultation slot requests from startup.

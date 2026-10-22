@@ -8,3 +8,6 @@ CONF_STUDENT_ID = "student_id"
 CONF_STUDENT_NAME = "student_name"
 CONF_TWO_FACTOR_CODE = "two_factor_code"
 CONF_SUBJECT_IDS = "subject_ids"
+
+CONF_CONSULTATIONS_MY_TEACHERS = "consultations_my_teachers"
+CONF_DEADLINE_HOURS = "participation_deadline_hours"

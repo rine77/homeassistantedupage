@@ -36,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     )
     calendars.append(edupage_assignments_calendar)
 
+    calendars.append(EduPageConsultationCalendar(coordinator, entry.data))
     async_add_entities(calendars)
 
     _LOGGER.debug("CALENDAR async_setup_entry finished.")
@@ -463,3 +464,42 @@ class EduPageAssignmentsCalendar(CoordinatorEntity, CalendarEntity):
             for event in self._calendar_events()
             if event.end > start_day and event.start < end_day
         ]
+
+
+class EduPageConsultationCalendar(CoordinatorEntity, CalendarEntity):
+    """Own confirmed reservations, suitable for standard calendar reminders."""
+
+    def __init__(self, coordinator, data):
+        super().__init__(coordinator)
+        self._attr_unique_id = f"edupage_consultations_{data[CONF_STUDENT_ID]}"
+        self._attr_name = compact_entity_name(data[CONF_STUDENT_NAME], "Consultations")
+        self._attr_device_info = student_device_info(data[CONF_STUDENT_ID], data[CONF_STUDENT_NAME])
+
+    @property
+    def available(self):
+        return bool(self.coordinator.last_update_success and (self.coordinator.data or {}).get("data_ok", {}).get("consultations"))
+
+    def _events(self):
+        from .participation import consultation_item
+        data = (self.coordinator.data or {}).get("consultations")
+        if not data:
+            return []
+        blocks = {b.consultation_id: b for b in data["overview"].consultations}
+        result = []
+        for reservation in data["overview"].reservations:
+            if not reservation.starts_at or reservation.consultation_id not in blocks:
+                continue
+            item = consultation_item(reservation, blocks)
+            result.append(CalendarEvent(start=reservation.starts_at,
+                end=datetime.fromisoformat(item["end"]),
+                summary=item["teacher_name"] or "Consultation",
+                description=item["block_note"], uid=reservation.visit_id or reservation.consultation_id))
+        return sorted(result, key=lambda e: e.start)
+
+    @property
+    def event(self):
+        from homeassistant.util import dt as dt_util
+        return next((e for e in self._events() if e.end > dt_util.now()), None)
+
+    async def async_get_events(self, hass, start_date, end_date):
+        return [e for e in self._events() if e.start < end_date and e.end > start_date]

@@ -271,7 +271,7 @@ async def test_options_flow_stores_selected_subjects(
     )
 
     assert result["type"] is data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert config_entry.options == {CONF_SUBJECT_IDS: ["2"]}
+    assert config_entry.options == {CONF_SUBJECT_IDS: ["2"], "consultations_my_teachers": True, "participation_deadline_hours": 24, "convert_letter_grades": False, **{f"letter_grade_{letter}": value for letter, value in zip("abcdef", (1, 2, 3, 4, 5, 5))}}
 
 
 async def test_options_flow_allows_empty_selection(
@@ -293,7 +293,7 @@ async def test_options_flow_allows_empty_selection(
     )
 
     assert result["type"] is data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert config_entry.options == {CONF_SUBJECT_IDS: []}
+    assert config_entry.options == {CONF_SUBJECT_IDS: [], "consultations_my_teachers": True, "participation_deadline_hours": 24, "convert_letter_grades": False, **{f"letter_grade_{letter}": value for letter, value in zip("abcdef", (1, 2, 3, 4, 5, 5))}}
 
 async def test_options_update_listener_reloads_entry(
         hass: HomeAssistant,
@@ -308,3 +308,65 @@ async def test_options_update_listener_reloads_entry(
         await _async_update_listener(hass, config_entry)
 
     reload_mock.assert_awaited_once_with(config_entry.entry_id)
+
+async def test_options_flow_stores_custom_letter_conversion(hass, config_entry):
+    coordinator = MagicMock()
+    coordinator.data = {"subjects": []}
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {
+        CONF_SUBJECT_IDS: [], "convert_letter_grades": True, "letter_grade_f": 6,
+    })
+    assert result["type"] is data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert config_entry.options["convert_letter_grades"] is True
+    assert config_entry.options["letter_grade_a"] == 1
+    assert config_entry.options["letter_grade_f"] == 6
+
+
+async def test_options_form_schema_serializes_for_frontend(hass, config_entry):
+    """The HTTP options endpoint must serialize the entire form schema."""
+    import voluptuous_serialize
+    from homeassistant.helpers import config_validation as cv
+
+    coordinator = MagicMock()
+    coordinator.data = {"subjects": [SimpleNamespace(subject_id=1, name="Inf")]}
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    def compatible_serializer(schema):
+        value = cv.custom_serializer(schema)
+        try:
+            import probatio
+        except ImportError:
+            return value
+        return voluptuous_serialize.UNSUPPORTED if value is probatio.UNSUPPORTED else value
+
+    fields = voluptuous_serialize.convert(result["data_schema"], custom_serializer=compatible_serializer)
+    assert {field["name"] for field in fields} >= {
+        "subject_ids", "convert_letter_grades", "consultations_my_teachers",
+        "participation_deadline_hours", *[f"letter_grade_{letter}" for letter in "abcdef"],
+    }
+
+
+async def test_options_form_uses_current_ha_serializer(hass, config_entry):
+    probatio = pytest.importorskip("probatio")
+    from homeassistant.helpers import config_validation as cv
+    coordinator = MagicMock()
+    coordinator.data = {"subjects": []}
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    fields = probatio.to_field_list(result["data_schema"], custom_serializer=cv.custom_serializer)
+    assert len(fields) == 10
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+async def test_options_reject_nonfinite_letter_value_without_saving(hass, config_entry, value):
+    coordinator = MagicMock()
+    coordinator.data = {"subjects": []}
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+    previous = dict(config_entry.options)
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    with pytest.raises(data_entry_flow.InvalidData):
+        await hass.config_entries.options.async_configure(result["flow_id"], {
+            CONF_SUBJECT_IDS: [], "letter_grade_a": value,
+        })
+    assert dict(config_entry.options) == previous

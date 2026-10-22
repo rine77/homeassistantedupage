@@ -235,6 +235,7 @@ async def test_always_creates_canteen_calendar(hass: HomeAssistant):
         "edupage_calendar_1",
         "edupage_canteen_calendar_1",
         "edupage_assignments_1",
+        "edupage_consultations_1",
     }
 
 
@@ -302,6 +303,7 @@ async def test_collect_data_resolves_student_class_names():
         "name": "Max",
         "class_id": 7,
         "class_names": ["4b", "Klasse 4b"],
+        "class_teacher_ids": [],
     }
 
 

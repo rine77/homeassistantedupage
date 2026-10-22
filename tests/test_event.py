@@ -238,3 +238,14 @@ def test_event_entity_creates_student_device(coordinator):
         ("homeassistantedupage", "1")
     }
     assert entity.device_info["name"] == "EduPage - Max Example"
+
+
+def test_device_lookup_is_scoped_to_config_entry(coordinator):
+    from unittest.mock import Mock, patch
+    coordinator.config_entry = SimpleNamespace(entry_id="child-entry", options={})
+    registry = Mock()
+    registry.async_get_device_by_identifier.return_value = SimpleNamespace(id="device-id")
+    with patch("custom_components.homeassistantedupage.event.dr.async_get", return_value=registry):
+        assert _entity(coordinator)._device_id() == "device-id"
+    registry.async_get_device_by_identifier.assert_called_once_with(("homeassistantedupage", "1"), "child-entry")
+    registry.async_get_device.assert_not_called()

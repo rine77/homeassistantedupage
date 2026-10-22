@@ -113,8 +113,11 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
 
     def _device_id(self) -> str | None:
         """Return the Home Assistant device ID for this student."""
-        device = dr.async_get(self.coordinator.hass).async_get_device(
-            identifiers={(DOMAIN, str(self._student_id))}
+        entry = self.coordinator.config_entry
+        if entry is None:
+            return None
+        device = dr.async_get(self.coordinator.hass).async_get_device_by_identifier(
+            (DOMAIN, str(self._student_id)), entry.entry_id
         )
         return device.id if device is not None else None
 

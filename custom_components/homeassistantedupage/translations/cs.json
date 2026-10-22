@@ -73,6 +73,9 @@
                     "letter_grade_f": "Číselná hodnota známky F"
                 }
             }
+        },
+        "error": {
+            "invalid_letter_value": "Zadejte konečné číslo od 0 do 100."
         }
     },
     "device_automation": {

@@ -72,6 +72,9 @@
                     "letter_grade_f": "Numeric value for grade F"
                 }
             }
+        },
+        "error": {
+            "invalid_letter_value": "Enter a finite number from 0 to 100."
         }
     },
     "device_automation": {

@@ -455,8 +455,19 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
             )
         ]
 
+        errors = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            user_input = dict(user_input)
+            for letter in DEFAULT_LETTER_MAPPING:
+                key = f"letter_grade_{letter.lower()}"
+                if key in user_input:
+                    try:
+                        user_input[key] = _letter_value(user_input[key])
+                    except vol.Invalid:
+                        errors[key] = "invalid_letter_value"
+                        user_input[key] = self.config_entry.options.get(key, DEFAULT_LETTER_MAPPING[letter])
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
 
         available_subject_ids = [
             option["value"] for option in subject_options
@@ -473,6 +484,7 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
+            errors=errors,
             data_schema=vol.Schema(
                 {
                     vol.Required(
@@ -489,8 +501,8 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
                                  default=self.config_entry.options.get(CONF_LETTER_GRADES, False)): bool,
                     **{
                         vol.Optional(f"letter_grade_{letter.lower()}",
-                                     default=self.config_entry.options.get(f"letter_grade_{letter.lower()}", value)):
-                            _letter_value
+                                     default=(user_input or self.config_entry.options).get(f"letter_grade_{letter.lower()}", value)):
+                            vol.All(vol.Coerce(float), vol.Range(min=0, max=100))
                         for letter, value in DEFAULT_LETTER_MAPPING.items()
                     },
                     vol.Optional(CONF_CONSULTATIONS_MY_TEACHERS,

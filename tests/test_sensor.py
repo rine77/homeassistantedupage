@@ -406,4 +406,3 @@ async def test_term_average_stays_arithmetic_without_letter_conversion(hass, coo
     assert entity.state == 3.0
     assert entity.extra_state_attributes["subject_averages"] == {"Inf": 3.0}
     assert entity.extra_state_attributes["grade_average_method"] == "arithmetic"
-

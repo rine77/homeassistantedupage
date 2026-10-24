@@ -677,4 +677,3 @@ the existing numeric term averages. Enabling conversion explicitly selects weigh
 averages for numeric and converted grades. Missing weights default to 1; nonpositive or
 invalid weights are excluded. (NESPLNĚNO), unknown symbols and nonfinite values
 are excluded from averages, while remaining visible as grades.
-

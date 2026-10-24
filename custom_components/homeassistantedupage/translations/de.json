@@ -62,13 +62,16 @@
         "description": "Wählen Sien Sie die Fächer aus, für die Notensensoren erstellt werden sollen. Andere EduPage-Sensoren sind davon nicht betroffen.",
         "data": {
           "subject_ids": "Fächer",
-          "convert_letter_grades": "Buchstabennoten für Durchschnittswerte umrechnen",
+          "convert_letter_grades": "Buchstabennoten umrechnen und alle Noten gewichten",
           "letter_grade_a": "Zahlenwert für die Note A",
           "letter_grade_b": "Zahlenwert für die Note B",
           "letter_grade_c": "Zahlenwert für die Note C",
           "letter_grade_d": "Zahlenwert für die Note D",
           "letter_grade_e": "Zahlenwert für die Note E",
           "letter_grade_f": "Zahlenwert für die Note F"
+        },
+        "data_description": {
+          "convert_letter_grades": "Bei aktivierter Umrechnung werden Buchstaben- und Zahlennoten gewichtet gemittelt. Ohne Umrechnung bleiben die numerischen Durchschnittswerte arithmetisch."
         }
       }
     },

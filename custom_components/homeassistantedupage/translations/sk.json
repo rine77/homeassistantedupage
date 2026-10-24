@@ -62,13 +62,16 @@
         "description": "Vyberte predmety, pre ktoré sa majú vytvoriť senzory známok. Ostatné entity EduPage zostanú bez zmeny.",
         "data": {
           "subject_ids": "Predmety",
-          "convert_letter_grades": "Prevádzať písmenové známky na výpočet priemerov",
+          "convert_letter_grades": "Prevádzať písmená a vážiť všetky známky v priemeroch",
           "letter_grade_a": "Číselná hodnota známky A",
           "letter_grade_b": "Číselná hodnota známky B",
           "letter_grade_c": "Číselná hodnota známky C",
           "letter_grade_d": "Číselná hodnota známky D",
           "letter_grade_e": "Číselná hodnota známky E",
           "letter_grade_f": "Číselná hodnota známky F"
+        },
+        "data_description": {
+          "convert_letter_grades": "Zapnutie prevodu používa vážené priemery pre písmenové aj číselné známky. Pri vypnutom prevode zostávajú číselné priemery aritmetické."
         }
       }
     },

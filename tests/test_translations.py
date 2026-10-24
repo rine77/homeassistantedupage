@@ -30,3 +30,18 @@ def test_supported_language_keys_and_placeholders(language):
         assert set(re.findall(r"\{[^{}]+\}", value)) == set(
             re.findall(r"\{[^{}]+\}", actual[key])
         ), key
+
+
+@pytest.mark.parametrize("language", ["cs", "de", "en", "es", "pl", "sk"])
+def test_conversion_option_explains_weighting_numeric_grades(language):
+    expected = {
+        "cs": "písmenné i číselné známky",
+        "de": "Buchstaben- und Zahlennoten",
+        "en": "both letter and numeric grades",
+        "es": "calificaciones con letras y las numéricas",
+        "pl": "ocen literowych, jak i liczbowych",
+        "sk": "písmenové aj číselné známky",
+    }
+    data = json.loads((ROOT / f"translations/{language}.json").read_text())
+    hint = data["options"]["step"]["init"]["data_description"]["convert_letter_grades"]
+    assert expected[language] in hint

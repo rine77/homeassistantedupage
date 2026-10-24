@@ -62,13 +62,16 @@
         "description": "Select the subjects for which grade sensors should be created. Other EduPage sensors are not affected.",
         "data": {
           "subject_ids": "Subjects",
-          "convert_letter_grades": "Convert letter grades for averages",
+          "convert_letter_grades": "Convert letter grades and weight all grades in averages",
           "letter_grade_a": "Numeric value for grade A",
           "letter_grade_b": "Numeric value for grade B",
           "letter_grade_c": "Numeric value for grade C",
           "letter_grade_d": "Numeric value for grade D",
           "letter_grade_e": "Numeric value for grade E",
           "letter_grade_f": "Numeric value for grade F"
+        },
+        "data_description": {
+          "convert_letter_grades": "Enabling conversion uses weighted averages for both letter and numeric grades. When disabled, numeric averages remain arithmetic."
         }
       }
     },

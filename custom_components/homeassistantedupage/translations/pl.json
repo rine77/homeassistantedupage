@@ -62,13 +62,16 @@
         "description": "Wybierz przedmioty, dla których mają zostać utworzone sensory ocen. Nie wpłynie to na pozostałe sensory EduPage.",
         "data": {
           "subject_ids": "Przedmioty",
-          "convert_letter_grades": "Przeliczaj oceny literowe do obliczania średnich",
+          "convert_letter_grades": "Przeliczaj oceny literowe i waż wszystkie oceny w średnich",
           "letter_grade_a": "Wartość liczbowa oceny A",
           "letter_grade_b": "Wartość liczbowa oceny B",
           "letter_grade_c": "Wartość liczbowa oceny C",
           "letter_grade_d": "Wartość liczbowa oceny D",
           "letter_grade_e": "Wartość liczbowa oceny E",
           "letter_grade_f": "Wartość liczbowa oceny F"
+        },
+        "data_description": {
+          "convert_letter_grades": "Włączenie przeliczania oznacza średnie ważone zarówno dla ocen literowych, jak i liczbowych. Po wyłączeniu średnie ocen liczbowych pozostają arytmetyczne."
         }
       }
     },

@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 from custom_components.homeassistantedupage.grade_average import (
     average_summary,
-    completeness_attributes,
     mapping_from_options,
 )
 
@@ -39,11 +38,12 @@ def test_invalid_values_and_zero_weights_do_not_poison_average():
         grade(5, "inf"),
         grade(True),
     ]
-    assert average_summary(grades)["grade_average"] == 2
+    assert average_summary(grades, {"A": 1})["grade_average"] == 2
     assert average_summary([grade("(NESPLNĚNO)")])["grade_average"] is None
 
 
 def test_complete_incomplete_and_unknown_reports():
+    from custom_components.homeassistantedupage.grade_status import completeness_attributes
     coordinator = SimpleNamespace(
         data={"grade_reports": {"grades": {"received": 13, "skipped": 4}}}
     )
@@ -55,3 +55,14 @@ def test_complete_incomplete_and_unknown_reports():
     assert (
         completeness_attributes(coordinator, "term_P1")["grades_skipped_total"] is None
     )
+
+
+def test_conversion_disabled_preserves_existing_arithmetic_averages():
+    grades = [grade(1, 4), grade(5, 1), grade("A", 100)]
+    assert average_summary(grades) == {
+        "grade_average": 3.0,
+        "grade_average_converted": False,
+        "grade_average_method": "arithmetic",
+    }
+    assert average_summary(grades, {"A": 1})["grade_average"] == 1.04
+    assert average_summary([grade(1, 0), grade(5, -2)])["grade_average"] == 3.0

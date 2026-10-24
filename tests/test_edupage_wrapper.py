@@ -223,3 +223,39 @@ async def test_grade_reports_are_separate_for_current_and_terms():
     await wrapper.get_grades_for_term(2026, Term.FIRST)
     assert wrapper.grade_reports["grades"]["skipped"] == 4
     assert wrapper.grade_reports["term_P1"]["skipped"] == 0
+
+
+@pytest.mark.parametrize("term", [False, True])
+async def test_outer_exception_logging_cannot_restore_unredacted_grade_chain(caplog, term):
+    import logging
+    from types import SimpleNamespace
+    from edupage_api.grades import Term
+
+    api = MagicMock()
+    api.username = "private-user@example.test"
+    wrapper = _wrapper(api)
+    wrapper.sessionid = "private-cookie-123"
+
+    def fail(*args):
+        try:
+            raise ValueError("private-cookie-123 private-user@example.test")
+        except ValueError as exc:
+            raise RuntimeError("outer private-cookie-123") from exc
+
+    api.get_grades.side_effect = fail
+    api.get_grades_for_term.side_effect = fail
+    with caplog.at_level(logging.WARNING):
+        try:
+            if term:
+                await wrapper.get_grades_for_term(2026, Term.FIRST, SimpleNamespace(person_id=99))
+            else:
+                await wrapper.get_grades(SimpleNamespace(person_id=99))
+        except UpdateFailed:
+            # Reproduce the coordinator's actual logging, including exc_info.
+            logging.getLogger(__name__).warning("Grade refresh failed", exc_info=True)
+    assert "private-cookie-123" not in caplog.text
+    assert "private-user@example.test" not in caplog.text
+    assert "[redacted]" in caplog.text
+    assert "RuntimeError" in caplog.text and "ValueError" in caplog.text
+    assert "origin=" in caplog.text and "Traceback" in caplog.text
+    assert "direct cause" not in caplog.text

@@ -745,7 +745,8 @@ assigned an invented school-event ID. Subject and term sensors expose
 grades_received_total, grades_skipped_total and grades_complete. These counts
 refer to the whole child/term response, since incomplete rows may lack a subject.
 Unknown completeness is represented by null. Skipped rows log their field names
-and reason, without grade values. Load warnings retain their traceback.
+and reason, without grade values. Grade failures log redacted causes and traceback locations; subsequent warnings
+suppress the original exception chain.
 
 ### Optional letter-grade averages
 
@@ -754,7 +755,9 @@ are A=1, B=2, C=3, D=4, E=5, F=5; each letter's value can be changed for your sc
 Conversion is disabled by default. Original grade values remain unchanged.
 Subject sensors expose grade_average, and term sensors also expose subject_averages.
 The grade_average_converted attribute identifies an average including letters;
-grade_average_method is weighted. Missing weights default to 1; nonpositive or
+grade_average_method is arithmetic while conversion is disabled, preserving
+the existing numeric term averages. Enabling conversion explicitly selects weighted
+averages for numeric and converted grades. Missing weights default to 1; nonpositive or
 invalid weights are excluded. (NESPLNĚNO), unknown symbols and nonfinite values
 are excluded from averages, while remaining visible as grades.
 

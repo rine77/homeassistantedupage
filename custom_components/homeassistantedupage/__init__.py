@@ -17,6 +17,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .homeassistant_edupage import Edupage, EdupageSessionExpired
 from .grade_helpers import grade_subject_audit
 from .entity_helpers import student_device_info
+from .session_tasks import finish_before_cancel
 from edupage_api.lunches import MealType
 from edupage_api.grades import Term
 from .const import (
@@ -300,7 +301,7 @@ async def _load_startup_consultations(coordinator, student):
         pending = asyncio.create_task(coordinator.edupage.get_consultations(student))
         try:
             # Executor work cannot be cancelled midway through a child switch.
-            consultations = await asyncio.shield(pending)
+            consultations = await finish_before_cancel(pending)
         except asyncio.CancelledError:
             try:
                 await pending

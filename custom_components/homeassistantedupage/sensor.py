@@ -12,7 +12,8 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from .grade_helpers import subject_key, grade_subject_audit
-from .grade_average import average_summary, coordinator_mapping, completeness_attributes
+from .grade_average import average_summary, coordinator_mapping
+from .grade_status import completeness_attributes
 from .assignment_helpers import event_matches_student, event_recipient
 from .const import (
     CONF_STUDENT_ID,
@@ -796,7 +797,7 @@ def _grade_numeric(grade_n):
 
 
 def _average(grades, mapping=None):
-    """Weighted mean, optionally converting the configured school letters."""
+    """Keep numeric averages arithmetic unless school conversion is enabled."""
     return average_summary(grades, mapping)["grade_average"]
 
 

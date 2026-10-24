@@ -28,7 +28,7 @@ def average_summary(grades, mapping=None):
             value = float(
                 mapping[letter] if is_converted else str(raw).replace(",", ".")
             )
-            weight = getattr(grade, "importance", None)
+            weight = getattr(grade, "importance", None) if mapping is not None else None
             weight = 1.0 if weight is None else float(weight)
         except (TypeError, ValueError):
             continue
@@ -40,25 +40,10 @@ def average_summary(grades, mapping=None):
     return {
         "grade_average": round(total / weight_sum, 2) if weight_sum else None,
         "grade_average_converted": converted,
-        "grade_average_method": "weighted",
+        "grade_average_method": "weighted" if mapping is not None else "arithmetic",
     }
 
 
 def coordinator_mapping(coordinator):
     entry = getattr(coordinator, "config_entry", None)
     return mapping_from_options(getattr(entry, "options", {}) or {})
-
-
-def completeness_attributes(coordinator, key="grades"):
-    report = (coordinator.data or {}).get("grade_reports", {}).get(key)
-    # Unknown is different from a verified zero skipped grades.
-    skipped = report.get("skipped") if isinstance(report, dict) else None
-    source = "grades" if key == "grades" else "grades_per_term"
-    fresh = (coordinator.data or {}).get("data_ok", {}).get(source, True)
-    return {
-        "grades_skipped_total": skipped,
-        "grades_received_total": report.get("received")
-        if isinstance(report, dict)
-        else None,
-        "grades_complete": skipped == 0 if fresh and skipped is not None else None,
-    }

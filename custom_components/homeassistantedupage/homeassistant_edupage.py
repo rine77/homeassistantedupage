@@ -11,6 +11,8 @@ from edupage_api.exceptions import (
 
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
+from .session_tasks import finish_before_cancel
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -39,6 +41,12 @@ class Edupage:
         self.sessionid = sessionid
         self.api = APIEdupage()
 
+    async def _async_executor(self, function, *args):
+        """Do not leave a shared-session operation running after cancellation."""
+        return await finish_before_cancel(
+            self.hass.async_add_executor_job(function, *args)
+        )
+
     def _load_session(self, subdomain, sessionid, username):
         """Reload a stored EduPage session synchronously."""
         login = LoginSession(self.api)
@@ -48,7 +56,7 @@ class Edupage:
         """Load the stored session. Never starts username/password login."""
         self.sessionid = sessionid
         try:
-            await self.hass.async_add_executor_job(
+            await self._async_executor(
                 self._load_session, subdomain, sessionid, username
             )
             if not self.api.is_logged_in:
@@ -96,7 +104,7 @@ class Edupage:
 
     async def get_classes(self):
         try:
-            return await self.hass.async_add_executor_job(self.api.get_classes)
+            return await self._async_executor(self.api.get_classes)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error updating get_classes() data from API: {e}")
 
@@ -146,10 +154,14 @@ class Edupage:
                 break
             root = next_error
         trace = root.__traceback__ if root else None
-        while trace and trace.tb_next:
+        frames = []
+        while trace:
+            frames.append(
+                f"{PurePath(trace.tb_frame.f_code.co_filename).name}:"
+                f"{trace.tb_lineno} {trace.tb_frame.f_code.co_name}"
+            )
             trace = trace.tb_next
-        origin = (f"{PurePath(trace.tb_frame.f_code.co_filename).name}:"
-                  f"{trace.tb_lineno} {trace.tb_frame.f_code.co_name}") if trace else "unknown"
+        origin = " <- ".join(frames[-8:]) or "unknown"
         summary = {"library_version": library_version, "cause": " <- ".join(chain), "origin": origin}
         if not hasattr(self, "grade_errors"):
             self.grade_errors = {}
@@ -159,12 +171,12 @@ class Edupage:
 
     async def get_grades(self, student=None):
         try:
-            result = await self.hass.async_add_executor_job(self._grade_read, student, "get_grades")
+            result = await self._async_executor(self._grade_read, student, "get_grades")
             getattr(self, "grade_errors", {}).pop("get_grades", None)
             return result
         except Exception as exc:
-            await self.hass.async_add_executor_job(self._log_grade_failure, "get_grades", student, exc)
-            raise UpdateFailed("EduPage get_grades failed; see the detailed grade diagnostic") from exc
+            await self._async_executor(self._log_grade_failure, "get_grades", student, exc)
+            raise UpdateFailed("EduPage get_grades failed; see the detailed grade diagnostic") from None
 
     def _read_participation(self, student, method, timezone_name, params=None):
         """Keep each read in the selected child's context, restoring the parent."""
@@ -235,7 +247,7 @@ class Edupage:
         """Read assigned actions/surveys without submitting responses."""
         timezone_name = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Prague")
         try:
-            return await self.hass.async_add_executor_job(
+            return await self._async_executor(
                 self._read_participation, student, "registrations", timezone_name
             )
         except Exception as exc:
@@ -245,7 +257,7 @@ class Edupage:
         """Read offered slots and own bookings without making reservations."""
         timezone_name = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Prague")
         try:
-            return await self.hass.async_add_executor_job(
+            return await self._async_executor(
                 self._read_participation, student, "consultations", timezone_name
             )
         except Exception as exc:
@@ -254,7 +266,7 @@ class Edupage:
     async def consultation_action(self, student, method, **params):
         """Explicit actions only; caller holds the same lock used by polling."""
         timezone_name = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Prague")
-        return await self.hass.async_add_executor_job(
+        return await self._async_executor(
             self._read_participation, student, method, timezone_name, params)
 
     def _get_text_grades(self, student):
@@ -271,19 +283,19 @@ class Edupage:
     async def get_text_grades(self, student):
         """Fetch textual assessments through the official API."""
         try:
-            return await self.hass.async_add_executor_job(self._get_text_grades, student)
+            return await self._async_executor(self._get_text_grades, student)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed("EDUPAGE error updating text assessments") from e
 
     async def get_subjects(self):
         try:
-            return await self.hass.async_add_executor_job(self.api.get_subjects)
+            return await self._async_executor(self.api.get_subjects)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error updating get_subjects() data from API: {e}")
 
     async def get_notifications(self):
         try:
-            notifications = await self.hass.async_add_executor_job(
+            notifications = await self._async_executor(
                 self.api.get_notifications
             )
             _LOGGER.debug("EDUPAGE Notifications found %s", notifications)
@@ -295,7 +307,7 @@ class Edupage:
 
     async def get_students(self):
         try:
-            return await self.hass.async_add_executor_job(self.api.get_students)
+            return await self._async_executor(self.api.get_students)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_students() data from API: {e}"
@@ -303,7 +315,7 @@ class Edupage:
 
     async def get_user_id(self):
         try:
-            return await self.hass.async_add_executor_job(self.api.get_user_id)
+            return await self._async_executor(self.api.get_user_id)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_user_id() data from API: {e}"
@@ -311,7 +323,7 @@ class Edupage:
 
     async def get_classrooms(self):
         try:
-            return await self.hass.async_add_executor_job(self.api.get_classrooms)
+            return await self._async_executor(self.api.get_classrooms)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_classrooms data from API: {e}"
@@ -319,7 +331,7 @@ class Edupage:
 
     async def get_teachers(self):
         try:
-            return await self.hass.async_add_executor_job(self.api.get_teachers)
+            return await self._async_executor(self.api.get_teachers)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_teachers data from API: {e}"
@@ -343,7 +355,7 @@ class Edupage:
 
     async def get_timetable(self, edu_student, day):
         try:
-            timetable = await self.hass.async_add_executor_job(
+            timetable = await self._async_executor(
                 self._get_timetable, edu_student, day
             )
             if timetable is None:
@@ -361,7 +373,7 @@ class Edupage:
 
     async def get_meals(self, day):
         try:
-            return await self.hass.async_add_executor_job(
+            return await self._async_executor(
                 self.api.get_meals, day
             )
         except (IndexError, AttributeError) as e:
@@ -378,7 +390,7 @@ class Edupage:
 
     async def get_timetable_changes(self, day):
         try:
-            return await self.hass.async_add_executor_job(
+            return await self._async_executor(
                 self.api.get_timetable_changes, day
             )
         except Exception as e:  # noqa: BLE001
@@ -388,7 +400,7 @@ class Edupage:
 
     async def get_missing_teachers(self, day):
         try:
-            result = await self.hass.async_add_executor_job(
+            result = await self._async_executor(
                 self.api.get_missing_teachers, day
             )
             return result or []
@@ -405,7 +417,7 @@ class Edupage:
 
     async def get_next_ringing_time(self, day_time):
         try:
-            return await self.hass.async_add_executor_job(
+            return await self._async_executor(
                 self.api.get_next_ringing_time, day_time
             )
         except Exception as e:  # noqa: BLE001
@@ -416,7 +428,7 @@ class Edupage:
     async def get_school_year(self) -> int:
         """Returns the current school year."""
         try:
-            return await self.hass.async_add_executor_job(self.api.get_school_year)
+            return await self._async_executor(self.api.get_school_year)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_school_year() data from API: {e}"
@@ -425,13 +437,13 @@ class Edupage:
     async def get_grades_for_term(self, year: int, term, student=None):
         operation = f"get_grades_for_term:{year}:{getattr(term, 'value', term)}"
         try:
-            result = await self.hass.async_add_executor_job(
+            result = await self._async_executor(
                 self._grade_read, student, "get_grades_for_term", year, term)
             getattr(self, "grade_errors", {}).pop(operation, None)
             return result
         except Exception as exc:
-            await self.hass.async_add_executor_job(self._log_grade_failure, operation, student, exc)
-            raise UpdateFailed("EduPage get_grades_for_term failed; see the detailed grade diagnostic") from exc
+            await self._async_executor(self._log_grade_failure, operation, student, exc)
+            raise UpdateFailed("EduPage get_grades_for_term failed; see the detailed grade diagnostic") from None
 
     # ------------------------------------------------------------------
     # Action methods used by services
@@ -439,19 +451,19 @@ class Edupage:
 
     async def choose_meal(self, meal, number: int):
         try:
-            await self.hass.async_add_executor_job(meal.choose, self.api, number)
+            await self._async_executor(meal.choose, self.api, number)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error choosing meal: {e}")
 
     async def sign_off_meal(self, meal):
         try:
-            await self.hass.async_add_executor_job(meal.sign_off, self.api)
+            await self._async_executor(meal.sign_off, self.api)
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error signing off meal: {e}")
 
     async def rate_meal(self, rating, quantity: int, quality: int):
         try:
-            await self.hass.async_add_executor_job(
+            await self._async_executor(
                 rating.rate, self.api, quantity, quality
             )
         except Exception as e:  # noqa: BLE001
@@ -511,7 +523,7 @@ class Edupage:
             # accepted and would be string-joined, so we pass the resolved
             # recipient IDs (e.g. ``s123``/``u456``) instead of the objects.
             recipient_ids = [account.get_id() for account in accounts]
-            return await self.hass.async_add_executor_job(
+            return await self._async_executor(
                 self.api.send_message, recipient_ids, body
             )
         except UpdateFailed:

@@ -1,5 +1,7 @@
 """Explicit consultation actions; dry runs never submit a reservation."""
 
+import asyncio
+
 from datetime import datetime
 
 import voluptuous as vol
@@ -10,6 +12,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import CONF_CONSULTATIONS_MY_TEACHERS, CONF_STUDENT_ID, DOMAIN
 from .participation import consultation_item
+from .session_tasks import finish_before_cancel
 
 
 def _error(code):
@@ -52,29 +55,40 @@ async def perform_action(
     else:
         method = "cancel_consultation"
         params["visit_id"] = str(visit_id)
-    # Polling and explicit actions must never switch the session's child concurrently.
+    async def select_and_act():
+        students = await coordinator.edupage.get_students()
+        student = next(
+            (s for s in students or []
+             if str(s.person_id) == str(entry.data[CONF_STUDENT_ID])),
+            None,
+        )
+        if student is None:
+            raise _error("entry_not_loaded")
+        result = await coordinator.edupage.consultation_action(student, method, **params)
+        if not dry_run and action == "cancel":
+            coordinator._ha_cancelled_visits = getattr(
+                coordinator, "_ha_cancelled_visits", set()
+            ) | {str(visit_id)}
+        return result
+
+    # Do not shield lock acquisition: cancelling a queued action must prevent it
+    # from writing later. Once started, finish the action/restoration under lock.
+    started = False
     try:
         async with coordinator.fetch_lock:
-            students = await coordinator.edupage.get_students()
-            student = next(
-                (
-                    s
-                    for s in students or []
-                    if str(s.person_id) == str(entry.data[CONF_STUDENT_ID])
-                ),
-                None,
-            )
-            if student is None:
-                raise _error("entry_not_loaded")
-            result = await coordinator.edupage.consultation_action(
-                student, method, **params
-            )
+            started = True
+            result = await finish_before_cancel(select_and_act())
         if not dry_run:
-            if action == "cancel":
-                coordinator._ha_cancelled_visits = getattr(
-                    coordinator, "_ha_cancelled_visits", set()
-                ) | {str(visit_id)}
             await coordinator.async_request_refresh()
+    except asyncio.CancelledError:
+        if started and not dry_run:
+            # Read back after a started action; never retry the write. The lock
+            # has been released only after parent-context restoration.
+            try:
+                await finish_before_cancel(coordinator.async_request_refresh())
+            except (Exception, asyncio.CancelledError):
+                pass
+        raise
     except ExpiredSessionException as exc:
         entry.async_start_reauth(hass)
         raise _error("session_expired") from exc

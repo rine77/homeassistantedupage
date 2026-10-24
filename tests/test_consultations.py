@@ -410,3 +410,87 @@ async def test_overlapping_blocks_show_slot_and_block_ends(hass):
     # Different visible durations/block ends even without the technical IDs.
     assert choices[0].split(" [")[0] != choices[1].split(" [")[0]
     assert "–" in choices[0].split(" – ")[1]
+
+
+@pytest.mark.parametrize("action", ["book", "cancel"])
+@pytest.mark.parametrize("worker_fails", [False, True])
+async def test_cancelled_action_holds_session_lock_until_parent_restored(hass, action, worker_fails):
+    """Use a real executor thread; cancellation cannot stop its finally block."""
+    import asyncio
+    import threading
+    from custom_components.homeassistantedupage.homeassistant_edupage import Edupage
+
+    c, entry = coordinator(hass)
+    started = asyncio.Event()
+    finish = threading.Event()
+    restored = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    api = Mock()
+    wrapper = Edupage(hass)
+    wrapper.api = api
+    wrapper.get_students = AsyncMock(return_value=[SimpleNamespace(person_id=1)])
+    c.edupage = wrapper
+
+    def work(**kwargs):
+        loop.call_soon_threadsafe(started.set)
+        assert finish.wait(5), "test did not release executor"
+        if worker_fails:
+            raise ConsultationUncertain()
+        return ConsultationReservation("b1", NOW, "v1")
+
+    def restore():
+        assert c.fetch_lock.locked()
+        loop.call_soon_threadsafe(restored.set)
+
+    api.book_consultation_slot.side_effect = work
+    api.cancel_consultation.side_effect = work
+    api.switch_to_parent.side_effect = restore
+    # The eligibility check is tested elsewhere; this test focuses on locking.
+    task = asyncio.create_task(perform_action(
+        hass, entry.entry_id, action, consultation_id="b1", start=NOW,
+        visit_id="v1", dry_run=False, allow_unrelated_teacher=True,
+    ))
+    await asyncio.wait_for(started.wait(), 3)
+    polling_started = asyncio.Event()
+
+    async def poll():
+        async with c.fetch_lock:
+            assert restored.is_set()
+            polling_started.set()
+
+    polling = asyncio.create_task(poll())
+    try:
+        for _ in range(2):
+            task.cancel()
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            assert c.fetch_lock.locked()
+            assert not polling_started.is_set()
+            assert not task.done()
+    finally:
+        finish.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await polling
+    api.switch_to_parent.assert_called_once()
+    getattr(api, "book_consultation_slot" if action == "book" else "cancel_consultation").assert_called_once()
+    c.async_request_refresh.assert_awaited_once()
+    if action == "cancel" and not worker_fails:
+        assert "v1" in c._ha_cancelled_visits
+
+
+async def test_cancelling_queued_action_never_starts_a_write(hass):
+    import asyncio
+
+    c, entry = coordinator(hass)
+    await c.fetch_lock.acquire()
+    task = asyncio.create_task(perform_action(
+        hass, entry.entry_id, "book", consultation_id="b1", start=NOW,
+        dry_run=False,
+    ))
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    c.fetch_lock.release()
+    c.edupage.consultation_action.assert_not_called()

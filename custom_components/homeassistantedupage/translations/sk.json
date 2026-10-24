@@ -1,79 +1,158 @@
 {
-  "config": {
-    "flow_title": "Nastavenie EduPage",
-    "error": {
-      "cannot_connect": "Nepodarilo sa pripojiť k EduPage.",
-      "invalid_auth": "Nesprávne prihlasovacie údaje.",
-      "invalid_code": "Potvrdzovací kód je neplatný alebo jeho platnosť vypršala.",
-      "captcha_required": "EduPage vyžaduje overenie CAPTCHA. Skúste to znova neskôr alebo skontrolujte prihlasovacie údaje."
-    },
-    "step": {
-      "user": {
-        "data": {
-          "password": "Heslo",
-          "username": "Používateľské meno",
-          "subdomain": "Subdoména školy"
+    "config": {
+        "flow_title": "Nastavenie EduPage",
+        "error": {
+            "cannot_connect": "Nepodarilo sa pripojiť k EduPage.",
+            "invalid_auth": "Nesprávne prihlasovacie údaje.",
+            "invalid_code": "Potvrdzovací kód je neplatný alebo jeho platnosť vypršala.",
+            "captcha_required": "EduPage vyžaduje overenie CAPTCHA. Skúste to znova neskôr alebo skontrolujte prihlasovacie údaje."
         },
-        "description": "Zadajte používateľské meno a heslo do EduPage a subdoménu školy.\n\nAk používate dvojstupňové overenie, v ďalšom kroku zadáte potvrdzovací kód z aplikácie EduPage.",
-        "title": "Prihlásenie do EduPage"
-      },
-      "two_factor": {
-        "title": "Dvojstupňové overenie",
-        "description": "V mobilnej aplikácii EduPage sa vyžaduje potvrdenie prihlásenia. Zadajte zobrazený potvrdzovací kód.",
-        "data": {
-          "two_factor_code": "Potvrdzovací kód"
+        "step": {
+            "user": {
+                "data": {
+                    "password": "Heslo",
+                    "username": "Používateľské meno",
+                    "subdomain": "Subdoména školy"
+                },
+                "description": "Zadajte používateľské meno a heslo do EduPage a subdoménu školy.\n\nAk používate dvojstupňové overenie, v ďalšom kroku zadáte potvrdzovací kód z aplikácie EduPage.",
+                "title": "Prihlásenie do EduPage"
+            },
+            "two_factor": {
+                "title": "Dvojstupňové overenie",
+                "description": "V mobilnej aplikácii EduPage sa vyžaduje potvrdenie prihlásenia. Zadajte zobrazený potvrdzovací kód.",
+                "data": {
+                    "two_factor_code": "Potvrdzovací kód"
+                }
+            },
+            "select_student": {
+                "title": "Výber žiaka",
+                "description": "Vyberte žiaka, ktorého údaje má táto integrácia sledovať.",
+                "data": {
+                    "student": "Žiak"
+                }
+            },
+            "reconfigure": {
+                "title": "Obnovenie prihlásenia do EduPage",
+                "description": "Prihláste sa znova, aby sa obnovila vypršaná relácia. Ak používate dvojstupňové overenie, zadajte potvrdzovací kód z aplikácie EduPage.",
+                "data": {
+                    "two_factor_code": "Potvrdzovací kód"
+                }
+            },
+            "reconfigure_code": {
+                "title": "Dvojstupňové overenie",
+                "description": "Zadajte potvrdzovací kód zobrazený v mobilnej aplikácii EduPage.",
+                "data": {
+                    "two_factor_code": "Potvrdzovací kód"
+                }
+            }
+        },
+        "abort": {
+            "already_configured": "Tento účet EduPage je už nakonfigurovaný.",
+            "no_students_found": "V tomto účte sa nenašli žiadni žiaci.",
+            "reconfigured": "Prihlásenie do EduPage bolo úspešne obnovené.",
+            "reconfigure_failed": "Obnovenie prihlásenia zlyhalo: {error}",
+            "reauth_unsuccessful": "Opätovné prihlásenie sa nepodarilo: {error}",
+            "reauth_successful": "Opätovné prihlásenie bolo úspešné."
         }
-      },
-      "select_student": {
-        "title": "Výber žiaka",
-        "description": "Vyberte žiaka, ktorého údaje má táto integrácia sledovať.",
-        "data": {
-          "student": "Žiak"
-        }
-      },
-      "reconfigure": {
-        "title": "Obnovenie prihlásenia do EduPage",
-        "description": "Prihláste sa znova, aby sa obnovila vypršaná relácia. Ak používate dvojstupňové overenie, zadajte potvrdzovací kód z aplikácie EduPage.",
-        "data": {
-          "two_factor_code": "Potvrdzovací kód"
-        }
-      },
-      "reconfigure_code": {
-        "title": "Dvojstupňové overenie",
-        "description": "Zadajte potvrdzovací kód zobrazený v mobilnej aplikácii EduPage.",
-        "data": {
-          "two_factor_code": "Potvrdzovací kód"
-        }
-      }
     },
-    "abort": {
-      "already_configured": "Tento účet EduPage je už nakonfigurovaný.",
-      "no_students_found": "V tomto účte sa nenašli žiadni žiaci.",
-      "reconfigured": "Prihlásenie do EduPage bolo úspešne obnovené.",
-      "reconfigure_failed": "Obnovenie prihlásenia zlyhalo: {error}",
-      "reauth_unsuccessful": "Opätovné prihlásenie sa nepodarilo: {error}",
-      "reauth_successful": "Opätovné prihlásenie bolo úspešné."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Výber predmetov",
-        "description": "Vyberte predmety, pre ktoré sa majú vytvoriť senzory známok. Ostatné entity EduPage zostanú bez zmeny.",
-        "data": {
-          "subject_ids": "Predmety"
+    "options": {
+        "step": {
+            "init": {
+                "title": "Výber predmetov",
+                "description": "Vyberte predmety, pre ktoré sa majú vytvoriť senzory známok. Ostatné entity EduPage zostanú bez zmeny.",
+                "data": {
+                    "subject_ids": "Predmety",
+                    "consultations_my_teachers": "Konzultácie iba s učiteľmi môjho dieťaťa",
+                    "participation_deadline_hours": "Upozornenie pred uzávierkou (hodiny)",
+                    "convert_letter_grades": "Prevádzať písmenové známky na výpočet priemerov",
+                    "letter_grade_a": "Číselná hodnota známky A",
+                    "letter_grade_b": "Číselná hodnota známky B",
+                    "letter_grade_c": "Číselná hodnota známky C",
+                    "letter_grade_d": "Číselná hodnota známky D",
+                    "letter_grade_e": "Číselná hodnota známky E",
+                    "letter_grade_f": "Číselná hodnota známky F"
+                }
+            }
+        },
+        "error": {
+            "invalid_letter_value": "Zadajte konečné číslo od 0 do 100."
         }
-      }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "new_grade": "Bola pridaná nová známka",
+            "new_homework": "Bola zadaná nová domáca úloha",
+            "new_message": "Bola prijatá nová správa",
+            "new_exam": "Bola zadaná nová písomka alebo skúšanie",
+            "timetable_change": "Bola zverejnená zmena rozvrhu alebo suplovanie",
+            "arrival_at_school": "Bol zaznamenaný príchod do školy",
+            "consultation_block_published": "Zverejnený blok konzultácií",
+            "consultation_booked": "Konzultácia rezervovaná",
+            "consultation_booking_opened": "Rezervácie konzultácií otvorené",
+            "consultation_changed": "Konzultácia zmenená",
+            "consultation_cancelled": "Konzultácia zrušená",
+            "consultation_booking_closing": "Uzávierka rezervácií konzultácií sa blíži",
+            "registration_opened": "Prihlasovanie otvorené",
+            "registration_deadline_soon": "Uzávierka prihlasovania sa blíži"
+        }
+    },
+    "exceptions": {
+        "consultation_rejected": {
+            "message": "EduPage požiadavku odmietol. Skontrolujte pravidlá rezervácie na jeho stránke."
+        },
+        "slot_taken": {
+            "message": "Tento termín už nie je voľný."
+        },
+        "booking_closed": {
+            "message": "Obdobie rezervácií je uzavreté."
+        },
+        "booking_limit": {
+            "message": "V tomto bloku už máte rezerváciu alebo bol dosiahnutý limit rezervácií."
+        },
+        "booking_not_owned": {
+            "message": "Vlastná rezervácia sa nenašla alebo zrušenie nie je jednoznačné."
+        },
+        "booking_uncertain": {
+            "message": "Výsledok zápisu sa nepodarilo overiť. Pred ďalším pokusom skontrolujte EduPage."
+        },
+        "entry_not_loaded": {
+            "message": "Vybraný záznam dieťaťa nie je načítaný."
+        },
+        "session_expired": {
+            "message": "Relácia vypršala. Prihláste sa znova."
+        },
+        "invalid_start": {
+            "message": "Použite dátum a čas vo formáte ISO vrátane časového pásma."
+        },
+        "select_consultation": {
+            "message": "Najprv vyberte konzultáciu."
+        },
+        "note_unsupported": {
+            "message": "Preskúmaný rezervačný protokol nepodporuje poznámky účastníkov."
+        },
+        "slot_not_found": {
+            "message": "Tento čas v danom bloku konzultácií neexistuje."
+        },
+        "unrelated_teacher": {
+            "message": "Učiteľ nie je pre toto dieťa overený. Skontrolujte záznam dieťaťa alebo výslovne nastavte allow_unrelated_teacher."
+        }
+    },
+    "entity": {
+        "select": {
+            "consultation_slot": {
+                "name": "Dostupná konzultácia"
+            },
+            "consultation_booking": {
+                "name": "Rezervovaná konzultácia"
+            }
+        },
+        "button": {
+            "book_consultation": {
+                "name": "Rezervovať vybranú konzultáciu"
+            },
+            "cancel_consultation": {
+                "name": "Zrušiť vybranú konzultáciu"
+            }
+        }
     }
-  },
-  "device_automation": {
-    "trigger_type": {
-      "new_grade": "Bola pridaná nová známka",
-      "new_homework": "Bola zadaná nová domáca úloha",
-      "new_message": "Bola prijatá nová správa",
-      "new_exam": "Bola zadaná nová písomka alebo skúšanie",
-      "timetable_change": "Bola zverejnená zmena rozvrhu alebo suplovanie",
-      "arrival_at_school": "Bol zaznamenaný príchod do školy"
-    }
-  }
 }

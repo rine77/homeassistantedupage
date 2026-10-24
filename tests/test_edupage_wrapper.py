@@ -12,12 +12,12 @@ homeassistantedupage#70 / #95:
 from unittest.mock import MagicMock, patch
 
 import pytest
-from edupage_api.exceptions import InsufficientPermissionsException
-from homeassistant.helpers.update_coordinator import UpdateFailed
 from custom_components.homeassistantedupage.homeassistant_edupage import (
     Edupage,
     EdupageSessionExpired,
 )
+from edupage_api.exceptions import InsufficientPermissionsException
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
 
 class _FakeHass:
@@ -87,9 +87,7 @@ async def test_get_meals_returns_none_on_index_error():
 async def test_get_meals_returns_none_on_attribute_error():
     """Unsupported meal data represented by AttributeError is treated as unavailable."""
     api = MagicMock()
-    api.get_meals.side_effect = AttributeError(
-        "'list' object has no attribute 'keys'"
-    )
+    api.get_meals.side_effect = AttributeError("'list' object has no attribute 'keys'")
 
     result = await _wrapper(api).get_meals("2026-09-04")
 
@@ -177,3 +175,87 @@ async def test_get_notifications_raises_update_failed_on_api_error():
     api.get_notifications.side_effect = AttributeError("missing field")
     with pytest.raises(UpdateFailed, match="get_notifications"):
         await _wrapper(api).get_notifications()
+
+
+async def test_numeric_and_term_grades_use_selected_child_and_restore_parent():
+    from types import SimpleNamespace
+
+    from edupage_api.grades import Term
+
+    api = MagicMock()
+    api.get_grades.return_value = ["grade"]
+    api.get_grades_for_term.return_value = ["term-grade"]
+    wrapper = _wrapper(api)
+    student = SimpleNamespace(person_id=99)
+    assert await wrapper.get_grades(student) == ["grade"]
+    assert await wrapper.get_grades_for_term(2026, Term.FIRST, student) == [
+        "term-grade"
+    ]
+    assert api.switch_to_child.call_count == 2
+    assert api.switch_to_parent.call_count == 2
+
+
+async def test_grade_error_logs_root_cause_without_session(caplog):
+    import logging
+    from types import SimpleNamespace
+
+    api = MagicMock()
+    api.get_grades.side_effect = ValueError("invalid numeric grade sess")
+    wrapper = _wrapper(api)
+    wrapper.sessionid = "sess"
+    with caplog.at_level(logging.WARNING), pytest.raises(UpdateFailed):
+        await wrapper.get_grades(SimpleNamespace(person_id=99))
+    assert "ValueError: invalid numeric grade [redacted]" in caplog.text
+    assert "library=" in caplog.text
+    assert wrapper.grade_errors["get_grades"]["cause"].startswith("ValueError:")
+    api.switch_to_parent.assert_called_once()
+
+
+async def test_grade_reports_are_separate_for_current_and_terms():
+    from edupage_api.grades import Term
+    api = MagicMock()
+    api.grade_read_report = {"received": 13, "parsed": 9, "skipped": 4}
+    api.get_grades.return_value = []
+    api.get_grades_for_term.return_value = []
+    wrapper = _wrapper(api)
+    await wrapper.get_grades()
+    api.grade_read_report = {"received": 2, "parsed": 2, "skipped": 0}
+    await wrapper.get_grades_for_term(2026, Term.FIRST)
+    assert wrapper.grade_reports["grades"]["skipped"] == 4
+    assert wrapper.grade_reports["term_P1"]["skipped"] == 0
+
+
+@pytest.mark.parametrize("term", [False, True])
+async def test_outer_exception_logging_cannot_restore_unredacted_grade_chain(caplog, term):
+    import logging
+    from types import SimpleNamespace
+    from edupage_api.grades import Term
+
+    api = MagicMock()
+    api.username = "private-user@example.test"
+    wrapper = _wrapper(api)
+    wrapper.sessionid = "private-cookie-123"
+
+    def fail(*args):
+        try:
+            raise ValueError("private-cookie-123 private-user@example.test")
+        except ValueError as exc:
+            raise RuntimeError("outer private-cookie-123") from exc
+
+    api.get_grades.side_effect = fail
+    api.get_grades_for_term.side_effect = fail
+    with caplog.at_level(logging.WARNING):
+        try:
+            if term:
+                await wrapper.get_grades_for_term(2026, Term.FIRST, SimpleNamespace(person_id=99))
+            else:
+                await wrapper.get_grades(SimpleNamespace(person_id=99))
+        except UpdateFailed:
+            # Reproduce the coordinator's actual logging, including exc_info.
+            logging.getLogger(__name__).warning("Grade refresh failed", exc_info=True)
+    assert "private-cookie-123" not in caplog.text
+    assert "private-user@example.test" not in caplog.text
+    assert "[redacted]" in caplog.text
+    assert "RuntimeError" in caplog.text and "ValueError" in caplog.text
+    assert "origin=" in caplog.text and "Traceback" in caplog.text
+    assert "direct cause" not in caplog.text

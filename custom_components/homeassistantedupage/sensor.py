@@ -767,7 +767,6 @@ class EduPageNotificationSensor(StateRestoringSensor):
         attributes["events_exposed"] = len(events)
         attributes["events_truncated"] = len(events) < len(notifications)
         attributes["data_stale"] = self.data_stale
-        attributes.update(completeness_attributes(self.coordinator))
         return attributes
 
     def _subject_name_by_id(self, subject_id):

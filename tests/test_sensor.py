@@ -383,3 +383,23 @@ def test_single_oversized_notification_is_omitted(coordinator):
     assert attrs["events_truncated"] is True
     assert attrs["events"] == []
     assert "event_1_id" not in attrs
+
+
+def test_subject_matches_string_and_integer_ids():
+    from types import SimpleNamespace
+    grades = [SimpleNamespace(subject_id="5"), SimpleNamespace(subject_id=-5)]
+    coordinator = SimpleNamespace(data={"grades": grades})
+    entity = EduPageSubjectSensor(coordinator, 1, "Student", "Inf", 5)
+    assert entity._current_grades == [grades[0]]
+    assert sensor_module.group_grades_by_subject(grades)["5"] == [grades[0]]
+
+
+
+async def test_subject_exposes_skipped_grade_count(hass, coordinator):
+    coordinator.data.update({
+        "grades": [_FakeGrade("A", "Test", datetime(2026, 10, 19), subject_id=1)],
+        "grade_reports": {"grades": {"received": 13, "parsed": 9, "skipped": 4}},
+    })
+    entity = EduPageSubjectSensor(coordinator, 1, "Student", "Inf", 1)
+    assert entity.extra_state_attributes["grades_skipped_total"] == 4
+    assert entity.extra_state_attributes["grades_complete"] is False

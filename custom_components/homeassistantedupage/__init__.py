@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .homeassistant_edupage import Edupage, EdupageSessionExpired
 from .entity_helpers import student_device_info
+from .grade_helpers import grade_subject_audit
 from edupage_api.lunches import MealType
 from edupage_api.grades import Term
 from .const import (
@@ -89,10 +90,10 @@ async def _collect_data(edupage, student, student_name):
             _LOGGER.warning("get_classes failed: %s", e)
 
     try:
-        grades = await edupage.get_grades()
+        grades = await edupage.get_grades(student)
         data_ok["grades"] = True
     except Exception as e:  # noqa: BLE001
-        _LOGGER.warning("get_grades failed: %s", e)
+        _LOGGER.warning("get_grades failed: %s", e, exc_info=True)
         grades = []
         data_ok["grades"] = False
 
@@ -112,6 +113,10 @@ async def _collect_data(edupage, student, student_name):
         _LOGGER.warning("get_subjects failed: %s", e)
         subjects = []
         data_ok["subjects"] = False
+
+    if data_ok["grades"] and data_ok["subjects"] and _LOGGER.isEnabledFor(logging.DEBUG):
+        _LOGGER.debug("Grade subject audit: student_id=%s %s", student.person_id,
+                      grade_subject_audit(grades, subjects, None))
 
     try:
         notifications = await edupage.get_notifications()
@@ -222,11 +227,11 @@ async def _collect_data(edupage, student, student_name):
                 grades_per_term[
                     term_key
                 ] = await edupage.get_grades_for_term(
-                    school_year, term_enum
+                    school_year, term_enum, student
                 )
             except Exception as e:  # noqa: BLE001
                 _LOGGER.warning(
-                    "get_grades_for_term(%s) failed: %s", term_key, e
+                    "get_grades_for_term(%s) failed: %s", term_key, e, exc_info=True
                 )
                 grades_per_term[term_key] = []
                 all_terms_ok = False
@@ -238,6 +243,7 @@ async def _collect_data(edupage, student, student_name):
 
     return {
         "student": student_data,
+        "grade_reports": dict(edupage.grade_reports) if isinstance(getattr(edupage, "grade_reports", None), dict) else {},
         "grades": grades,
         "text_grades": text_grades,
         "subjects": subjects,
@@ -318,7 +324,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("INIT session load failed: %s", e)
         return False
 
-    fetch_lock = asyncio.Lock()
+    # Entries sharing a server session must not select different children together.
+    import hashlib
+    lock_key = hashlib.sha256(f"{subdomain}:{phpsessid}".encode()).hexdigest()
+    session_locks = hass.data.setdefault(f"{DOMAIN}_session_locks", {})
+    fetch_lock = session_locks.setdefault(lock_key, asyncio.Lock())
 
     async def fetch_data():
         """Fetch timetable, canteen and notification data for the student."""

@@ -1,78 +1,89 @@
 {
-  "config": {
-    "flow_title": "EduPage Setup Flow",
-    "error": {
-      "cannot_connect": "Failed to connect",
-      "invalid_auth": "Invalid credentials",
-      "invalid_code": "The confirmation code is invalid or has expired.",
-      "captcha_required": "EduPage is asking for a CAPTCHA. Try again later or check your credentials."
-    },
-    "step": {
-      "user": {
-        "data": {
-          "password": "Password",
-          "username": "Username",
-          "subdomain": "Subdomain"
+    "config": {
+        "flow_title": "EduPage Setup Flow",
+        "error": {
+            "cannot_connect": "Failed to connect",
+            "invalid_auth": "Invalid credentials",
+            "invalid_code": "The confirmation code is invalid or has expired.",
+            "captcha_required": "EduPage is asking for a CAPTCHA. Try again later or check your credentials."
         },
-        "description": "Enter your EduPage username, password and school subdomain.\n\nIf you have 2FA enabled, you will be asked for a confirmation code from the EduPage app.",
-        "title": "Login to your edupage account"
-      },
-      "two_factor": {
-        "title": "Two-Factor Authentication",
-        "description": "A confirmation in the EduPage mobile app is required. Enter the confirmation code shown there.",
-        "data": {
-          "two_factor_code": "Confirmation code"
+        "step": {
+            "user": {
+                "data": {
+                    "password": "Password",
+                    "username": "Username",
+                    "subdomain": "Subdomain"
+                },
+                "description": "Enter your EduPage username, password and school subdomain.\n\nIf you have 2FA enabled, you will be asked for a confirmation code from the EduPage app.",
+                "title": "Login to your edupage account"
+            },
+            "two_factor": {
+                "title": "Two-Factor Authentication",
+                "description": "A confirmation in the EduPage mobile app is required. Enter the confirmation code shown there.",
+                "data": {
+                    "two_factor_code": "Confirmation code"
+                }
+            },
+            "select_student": {
+                "title": "Select Student",
+                "description": "Choose which student this integration should track.",
+                "data": {
+                    "student": "Student"
+                }
+            },
+            "reconfigure": {
+                "title": "Re-authenticate EduPage",
+                "description": "Login again to refresh the expired session. If 2FA is enabled, enter the confirmation code from the EduPage app.",
+                "data": {
+                    "two_factor_code": "Confirmation code"
+                }
+            },
+            "reconfigure_code": {
+                "title": "Two-Factor Authentication",
+                "description": "Enter the confirmation code shown in the EduPage mobile app.",
+                "data": {
+                    "two_factor_code": "Confirmation code"
+                }
+            }
+        },
+        "abort": {
+            "already_configured": "Device is already configured",
+            "no_students_found": "No students were found on this account.",
+            "reconfigured": "Successfully updated the stored session.",
+            "reconfigure_failed": "Re-authentication failed: {error}",
+            "reauth_unsuccessful": "Re-authentication unsuccessful: {error}",
+            "reauth_successful": "Re-authentication successful."
         }
-      },
-      "select_student": {
-        "title": "Select Student",
-        "description": "Choose which student this integration should track.",
-        "data": {
-          "student": "Student"
-        }
-      },
-      "reconfigure": {
-        "title": "Re-authenticate EduPage",
-        "description": "Login again to refresh the expired session. If 2FA is enabled, enter the confirmation code from the EduPage app.",
-        "data": {
-          "two_factor_code": "Confirmation code"
-        }
-      },
-      "reconfigure_code": {
-        "title": "Two-Factor Authentication",
-        "description": "Enter the confirmation code shown in the EduPage mobile app.",
-        "data": {
-          "two_factor_code": "Confirmation code"
-        }
-      }
     },
-    "abort": {
-      "already_configured": "Device is already configured",
-      "no_students_found": "No students were found on this account.",
-      "reconfigured": "Successfully updated the stored session.",
-      "reconfigure_failed": "Re-authentication failed: {error}",
-      "reauth_unsuccessful": "Re-authentication unsuccessful: {error}"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Select subjects",
-        "description": "Select the subjects for which grade sensors should be created. Other EduPage sensors are not affected.",
-        "data": {
-          "subject_ids": "Subjects"
+    "options": {
+        "step": {
+            "init": {
+                "title": "Select subjects",
+                "description": "Select the subjects for which grade sensors should be created. Other EduPage sensors are not affected.",
+                "data": {
+                    "subject_ids": "Subjects",
+                    "convert_letter_grades": "Convert letter grades for averages",
+                    "letter_grade_a": "Numeric value for grade A",
+                    "letter_grade_b": "Numeric value for grade B",
+                    "letter_grade_c": "Numeric value for grade C",
+                    "letter_grade_d": "Numeric value for grade D",
+                    "letter_grade_e": "Numeric value for grade E",
+                    "letter_grade_f": "Numeric value for grade F"
+                }
+            }
+        },
+        "error": {
+            "invalid_letter_value": "Enter a finite number from 0 to 100."
         }
-      }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "new_grade": "A new grade was received",
+            "new_homework": "New homework was received",
+            "new_message": "A new message was received",
+            "new_exam": "A new exam was received",
+            "timetable_change": "A timetable change was received",
+            "arrival_at_school": "An arrival at school was recorded"
+        }
     }
-  },
-  "device_automation": {
-    "trigger_type": {
-      "new_grade": "A new grade was received",
-      "new_homework": "New homework was received",
-      "new_message": "A new message was received",
-      "new_exam": "A new exam was received",
-      "timetable_change": "A timetable change was received",
-      "arrival_at_school": "An arrival at school was recorded"
-    }
-  }
 }

@@ -1,89 +1,89 @@
 {
-    "config": {
-        "flow_title": "EduPage Setup Flow",
-        "error": {
-            "cannot_connect": "Keine Verbindung möglich",
-            "invalid_auth": "Ungültige Zugangsdaten",
-            "invalid_code": "Der Bestätigungscode ist ungültig oder abgelaufen.",
-            "captcha_required": "EduPage verlangt ein CAPTCHA. Versuchen Sie es später erneut oder prüfen Sie Ihre Zugangsdaten."
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "password": "Passwort",
-                    "username": "Username",
-                    "subdomain": "Subdomain"
-                },
-                "description": "Geben Sie EduPage-Benutzername, Passwort und Schul-Subdomain ein.\n\nWenn Sie 2FA aktiviert haben, werden Sie nach einem Bestätigungscode aus der EduPage-App gefragt.",
-                "title": "edupage account login"
-            },
-            "two_factor": {
-                "title": "Zwei-Faktor-Authentifizierung",
-                "description": "Eine Bestätigung in der EduPage-App ist erforderlich. Geben Sie den dort angezeigten Bestätigungscode ein.",
-                "data": {
-                    "two_factor_code": "Bestätigungscode"
-                }
-            },
-            "select_student": {
-                "title": "Schüler auswählen",
-                "description": "Wählen Sie aus, welchen Schüler diese Integration verfolgen soll.",
-                "data": {
-                    "student": "Schüler"
-                }
-            },
-            "reconfigure": {
-                "title": "EduPage erneut authentifizieren",
-                "description": "Melden Sie sich erneut an, um die abgelaufene Sitzung zu erneuern. Wenn 2FA aktiviert ist, geben Sie den Bestätigungscode aus der EduPage-App ein.",
-                "data": {
-                    "two_factor_code": "Bestätigungscode"
-                }
-            },
-            "reconfigure_code": {
-                "title": "Zwei-Faktor-Authentifizierung",
-                "description": "Geben Sie den in der EduPage-App angezeigten Bestätigungscode ein.",
-                "data": {
-                    "two_factor_code": "Bestätigungscode"
-                }
-            }
-        },
-        "abort": {
-            "already_configured": "Das Gerät ist bereits konfiguriert",
-            "no_students_found": "Auf diesem Konto wurden keine Schüler gefunden.",
-            "reconfigured": "Die gespeicherte Sitzung wurde erfolgreich aktualisiert.",
-            "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}",
-            "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}",
-            "reauth_successful": "Erneute Anmeldung erfolgreich."
-        }
+  "config": {
+    "flow_title": "EduPage Setup Flow",
+    "error": {
+      "cannot_connect": "Keine Verbindung möglich",
+      "invalid_auth": "Ungültige Zugangsdaten",
+      "invalid_code": "Der Bestätigungscode ist ungültig oder abgelaufen.",
+      "captcha_required": "EduPage verlangt ein CAPTCHA. Versuchen Sie es später erneut oder prüfen Sie Ihre Zugangsdaten."
     },
-    "options": {
-        "step": {
-            "init": {
-                "title": "Fächer auswählen",
-                "description": "Wählen Sie die Fächer aus, für die Notensensoren erstellt werden sollen. Andere EduPage-Sensoren sind davon nicht betroffen.",
-                "data": {
-                    "subject_ids": "Fächer",
-                    "convert_letter_grades": "Buchstabennoten für Durchschnittswerte umrechnen",
-                    "letter_grade_a": "Zahlenwert für die Note A",
-                    "letter_grade_b": "Zahlenwert für die Note B",
-                    "letter_grade_c": "Zahlenwert für die Note C",
-                    "letter_grade_d": "Zahlenwert für die Note D",
-                    "letter_grade_e": "Zahlenwert für die Note E",
-                    "letter_grade_f": "Zahlenwert für die Note F"
-                }
-            }
+    "step": {
+      "user": {
+        "data": {
+          "password": "Passwort",
+          "username": "Username",
+          "subdomain": "Subdomain"
         },
-        "error": {
-            "invalid_letter_value": "Gib eine endliche Zahl zwischen 0 und 100 ein."
+        "description": "Geben Sie EduPage-Benutzername, Passwort und Schul-Subdomain ein.\n\nWenn Sie 2FA aktiviert haben, werden Sie nach einem Bestätigungscode aus der EduPage-App gefragt.",
+        "title": "edupage account login"
+      },
+      "two_factor": {
+        "title": "Zwei-Faktor-Authentifizierung",
+        "description": "Eine Bestätigung in der EduPage-App ist erforderlich. Geben Sie den dort angezeigten Bestätigungscode ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
         }
+      },
+      "select_student": {
+        "title": "Schüler auswählen",
+        "description": "Wählen Sien Sie aus, welchen Schüler diese Integration verfolgen soll.",
+        "data": {
+          "student": "Schüler"
+        }
+      },
+      "reconfigure": {
+        "title": "EduPage erneut authentifizieren",
+        "description": "Melden Sie sich erneut an, um die abgelaufene Sitzung zu erneuern. Wenn 2FA aktiviert ist, geben Sie den Bestätigungscode aus der EduPage-App ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
+        }
+      },
+      "reconfigure_code": {
+        "title": "Zwei-Faktor-Authentifizierung",
+        "description": "Geben Sie den in der EduPage-App angezeigten Bestätigungscode ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
+        }
+      }
     },
-    "device_automation": {
-        "trigger_type": {
-            "new_grade": "Eine neue Note wurde empfangen",
-            "new_homework": "Eine neue Hausaufgabe wurde empfangen",
-            "new_message": "Eine neue Nachricht wurde empfangen",
-            "new_exam": "Eine neue Prüfung wurde empfangen",
-            "timetable_change": "Eine Stundenplanänderung wurde empfangen",
-            "arrival_at_school": "Eine Ankunft in der Schule wurde erfasst"
-        }
+    "abort": {
+      "already_configured": "Das Gerät ist bereits konfiguriert",
+      "no_students_found": "Auf diesem Konto wurden keine Schüler gefunden.",
+      "reconfigured": "Die gespeicherte Sitzung wurde erfolgreich aktualisiert.",
+      "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}",
+      "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}",
+      "reauth_successful": "Erneute Anmeldung erfolgreich."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Fächer auswählen",
+        "description": "Wählen Sien Sie die Fächer aus, für die Notensensoren erstellt werden sollen. Andere EduPage-Sensoren sind davon nicht betroffen.",
+        "data": {
+          "subject_ids": "Fächer",
+          "convert_letter_grades": "Buchstabennoten für Durchschnittswerte umrechnen",
+          "letter_grade_a": "Zahlenwert für die Note A",
+          "letter_grade_b": "Zahlenwert für die Note B",
+          "letter_grade_c": "Zahlenwert für die Note C",
+          "letter_grade_d": "Zahlenwert für die Note D",
+          "letter_grade_e": "Zahlenwert für die Note E",
+          "letter_grade_f": "Zahlenwert für die Note F"
+        }
+      }
+    },
+    "error": {
+      "invalid_letter_value": "Geben Sie eine endliche Zahl zwischen 0 und 100 ein."
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_grade": "Eine neue Note wurde empfangen",
+      "new_homework": "Eine neue Hausaufgabe wurde empfangen",
+      "new_message": "Eine neue Nachricht wurde empfangen",
+      "new_exam": "Eine neue Prüfung wurde empfangen",
+      "timetable_change": "Eine Stundenplanänderung wurde empfangen",
+      "arrival_at_school": "Eine Ankunft in der Schule wurde erfasst"
+    }
+  }
 }

@@ -5,7 +5,9 @@
       "cannot_connect": "Nie udało się połączyć z EduPage.",
       "invalid_auth": "Nieprawidłowe dane logowania.",
       "invalid_code": "Kod potwierdzający jest nieprawidłowy lub wygasł.",
-      "captcha_required": "EduPage wymaga weryfikacji CAPTCHA. Spróbuj ponownie później lub sprawdź dane logowania."
+      "captcha_required": "EduPage wymaga weryfikacji CAPTCHA. Spróbuj ponownie później lub sprawdź dane logowania.",
+      "not_confirmed": "Ta sesja nie została jeszcze zatwierdzona w aplikacji mobilnej EduPage. Otwórz aplikację i zatwierdź logowanie, a następnie spróbuj ponownie.",
+      "code_request_too_soon": "EduPage nie wyśle jeszcze kolejnego kodu. Spróbuj ponownie za {retry_seconds} sekund."
     },
     "step": {
       "user": {
@@ -18,10 +20,13 @@
         "title": "Logowanie do EduPage"
       },
       "two_factor": {
-        "title": "Weryfikacja dwuetapowa",
-        "description": "Wymagane jest potwierdzenie w aplikacji mobilnej EduPage. Wprowadź wyświetlony tam kod potwierdzający.",
+        "title": "Uwierzytelnianie dwuskładnikowe",
+        "description": "EduPage wymaga dla tego konta drugiego czynnika.\n\nWprowadź kod potwierdzający z aplikacji mobilnej EduPage. Jeśli nie masz dostępu do aplikacji, możesz zamiast tego poprosić EduPage o wysłanie kodu na Twój adres e-mail, o ponowne wysłanie powiadomienia w aplikacji lub o potwierdzenie, że ta sesja została już zatwierdzona w aplikacji.\n\nZapisany adres e-mail to `{email}`, a powiązane urządzenia to `{devices}`.\n\nEduPage ogranicza, jak często można poprosić o kod. Jeśli żądanie zostanie odrzucone, odczekaj {retry_seconds} sekund i spróbuj ponownie.",
         "data": {
-          "two_factor_code": "Kod potwierdzający"
+          "two_factor_code": "Kod potwierdzający",
+          "send_email_code": "Wyślij kod na mój adres e-mail",
+          "resend_notification": "Wyślij ponownie powiadomienie w aplikacji mobilnej",
+          "device_confirmed": "Już zatwierdziłem tę sesję w aplikacji"
         }
       },
       "select_student": {
@@ -39,10 +44,13 @@
         }
       },
       "reconfigure_code": {
-        "title": "Weryfikacja dwuetapowa",
-        "description": "Wprowadź kod potwierdzający wyświetlony w aplikacji mobilnej EduPage.",
+        "title": "Uwierzytelnianie dwuskładnikowe",
+        "description": "EduPage wymaga dla tego konta drugiego czynnika.\n\nWprowadź kod potwierdzający z aplikacji mobilnej EduPage. Jeśli nie masz dostępu do aplikacji, możesz zamiast tego poprosić EduPage o wysłanie kodu na Twój adres e-mail, o ponowne wysłanie powiadomienia w aplikacji lub o potwierdzenie, że ta sesja została już zatwierdzona w aplikacji.\n\nZapisany adres e-mail to `{email}`, a powiązane urządzenia to `{devices}`.\n\nEduPage ogranicza, jak często można poprosić o kod. Jeśli żądanie zostanie odrzucone, odczekaj {retry_seconds} sekund i spróbuj ponownie.",
         "data": {
-          "two_factor_code": "Kod potwierdzający"
+          "two_factor_code": "Kod potwierdzający",
+          "send_email_code": "Wyślij kod na mój adres e-mail",
+          "resend_notification": "Wyślij ponownie powiadomienie w aplikacji mobilnej",
+          "device_confirmed": "Już zatwierdziłem tę sesję w aplikacji"
         }
       }
     },

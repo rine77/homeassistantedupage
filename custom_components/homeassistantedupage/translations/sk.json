@@ -5,7 +5,9 @@
       "cannot_connect": "Nepodarilo sa pripojiť k EduPage.",
       "invalid_auth": "Nesprávne prihlasovacie údaje.",
       "invalid_code": "Potvrdzovací kód je neplatný alebo jeho platnosť vypršala.",
-      "captcha_required": "EduPage vyžaduje overenie CAPTCHA. Skúste to znova neskôr alebo skontrolujte prihlasovacie údaje."
+      "captcha_required": "EduPage vyžaduje overenie CAPTCHA. Skúste to znova neskôr alebo skontrolujte prihlasovacie údaje.",
+      "not_confirmed": "Prihlásenie zatiaľ nebolo v mobilnej aplikácii EduPage potvrdené. Otvorte aplikáciu a prihlásenie schváľte, potom to skúste znova.",
+      "code_request_too_soon": "EduPage zatiaľ nepošle ďalší kód. Skúste to znova za {retry_seconds} sekúnd."
     },
     "step": {
       "user": {
@@ -18,10 +20,13 @@
         "title": "Prihlásenie do EduPage"
       },
       "two_factor": {
-        "title": "Dvojstupňové overenie",
-        "description": "V mobilnej aplikácii EduPage sa vyžaduje potvrdenie prihlásenia. Zadajte zobrazený potvrdzovací kód.",
+        "title": "Dvojfaktorové overenie",
+        "description": "EduPage vyžaduje pre tento účet druhý faktor.\n\nZadajte potvrdzovací kód z mobilnej aplikácie EduPage. Ak k aplikácii nemáte prístup, môžete namiesto toho požiadať EduPage, aby vám poslal kód na vašu e-mailovú adresu, znovu poslal upozornenie v aplikácii alebo potvrdil, že ste toto prihlásenie v aplikácii už schválili.\n\nE-mailová adresa vedená v systéme je `{email}` a spárované zariadenia sú `{devices}`.\n\nEduPage obmedzuje, ako často možno kód vyžiadať. Ak je žiadosť zamietnutá, počkajte {retry_seconds} sekúnd a skúste to znova.",
         "data": {
-          "two_factor_code": "Potvrdzovací kód"
+          "two_factor_code": "Potvrdzovací kód",
+          "send_email_code": "Poslať kód na moju e-mailovú adresu",
+          "resend_notification": "Znovu poslať upozornenie v mobilnej aplikácii",
+          "device_confirmed": "Toto prihlásenie som už v aplikácii potvrdil/a"
         }
       },
       "select_student": {
@@ -39,10 +44,13 @@
         }
       },
       "reconfigure_code": {
-        "title": "Dvojstupňové overenie",
-        "description": "Zadajte potvrdzovací kód zobrazený v mobilnej aplikácii EduPage.",
+        "title": "Dvojfaktorové overenie",
+        "description": "EduPage vyžaduje pre tento účet druhý faktor.\n\nZadajte potvrdzovací kód z mobilnej aplikácie EduPage. Ak k aplikácii nemáte prístup, môžete namiesto toho požiadať EduPage, aby vám poslal kód na vašu e-mailovú adresu, znovu poslal upozornenie v aplikácii alebo potvrdil, že ste toto prihlásenie v aplikácii už schválili.\n\nE-mailová adresa vedená v systéme je `{email}` a spárované zariadenia sú `{devices}`.\n\nEduPage obmedzuje, ako často možno kód vyžiadať. Ak je žiadosť zamietnutá, počkajte {retry_seconds} sekúnd a skúste to znova.",
         "data": {
-          "two_factor_code": "Potvrdzovací kód"
+          "two_factor_code": "Potvrdzovací kód",
+          "send_email_code": "Poslať kód na moju e-mailovú adresu",
+          "resend_notification": "Znovu poslať upozornenie v mobilnej aplikácii",
+          "device_confirmed": "Toto prihlásenie som už v aplikácii potvrdil/a"
         }
       }
     },

@@ -1,10 +1,14 @@
 import logging
+from datetime import timedelta
+
 import voluptuous as vol
 
 from edupage_api import Edupage
 from edupage_api.exceptions import (
     BadCredentialsException,
     CaptchaException,
+    RequestError,
+    RetryLaterException,
     SecondFactorFailedException,
 )
 
@@ -12,19 +16,37 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.helpers import selector
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_PHPSESSID,
     CONF_STUDENT_ID,
     CONF_STUDENT_NAME,
     CONF_SUBDOMAIN,
-    CONF_TWO_FACTOR_CODE,
     CONF_SUBJECT_IDS,
+    CONF_TWO_FACTOR_CODE,
     DOMAIN,
+    ISSUE_TRACKER,
 )
-from .twofactor import start_two_factor
 
 _LOGGER = logging.getLogger(__name__)
+
+# One-shot actions offered on the second-factor step. Each is a boolean that is
+# ticked together with an (optional) code, performs its action, and re-renders
+# the step without consuming it.
+CONF_SEND_EMAIL_CODE = "send_email_code"
+# Note: the form key is singular but the TwoFactorLogin method is plural
+# (`resend_notifications`).
+CONF_RESEND_NOTIFICATION = "resend_notification"
+CONF_DEVICE_CONFIRMED = "device_confirmed"
+
+
+def _mask_email(value):
+    """Mask an email address for display, e.g. `j***@example.com`."""
+    if not value or "@" not in value:
+        return ""
+    local, _, domain = value.partition("@")
+    return f"{local[:1]}***@{domain}" if local else f"***@{domain}"
 
 
 class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -43,6 +65,9 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialise the flow."""
         self._reauth = False
+        self._challenge = None
+        self._challenge_api = None
+        self._cooldown_until = None
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step: username / password / subdomain."""
@@ -66,34 +91,19 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     e,
                 )
                 if "two-factor fields" in str(e):
-                    # Modern EduPage 2FA page: `edupage-api` can no longer parse
-                    # the challenge from hidden inputs. Drive the app-code flow
-                    # ourselves so the existing TOTP step can be shown.
-                    try:
-                        second_factor = await self.hass.async_add_executor_job(
-                            start_two_factor,
-                            api,
-                            user_input[CONF_USERNAME],
-                            user_input[CONF_PASSWORD],
-                            user_input[CONF_SUBDOMAIN],
-                        )
-                    except BadCredentialsException as e2:
-                        _LOGGER.error(
-                            "EduPage login failed: could not initialise second "
-                            "factor authentication for the configured account."
-                        )
-                        _LOGGER.debug(
-                            "EduPage 2FA init failed for %s@%s: %s",
-                            user_input.get(CONF_USERNAME),
-                            user_input.get(CONF_SUBDOMAIN),
-                            e2,
-                        )
-                        errors["base"] = "invalid_auth"
+                    # `edupage-api` served a two-factor page it could not parse.
+                    # Nothing the flow can do here: retrying with the same
+                    # credentials lands on the same page.
+                    _LOGGER.error(
+                        "EduPage served a two-factor page that edupage-api could "
+                        "not parse. Please report it at %s",
+                        ISSUE_TRACKER,
+                    )
                 else:
                     _LOGGER.error(
                         "EduPage login failed: invalid username or password."
                     )
-                    errors["base"] = "invalid_auth"
+                errors["base"] = "invalid_auth"
             except CaptchaException as e:
                 _LOGGER.debug(
                     "EduPage login captcha for %s@%s: %s",
@@ -109,8 +119,8 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     user_input.get(CONF_SUBDOMAIN),
                     e,
                 )
-                self.api = api
-                return await self.async_step_two_factor(retry=True)
+                self._challenge_api = api
+                return await self.async_step_two_factor()
             except Exception as e:  # noqa: BLE001
                 _LOGGER.debug(
                     "EduPage login unexpected error for %s@%s: %s",
@@ -123,8 +133,8 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if not errors and second_factor is not None:
                 # 2FA required: capture the object, ask for the confirmation code.
-                self.api = api
-                self.second_factor = second_factor
+                self._challenge = second_factor
+                self._challenge_api = api
                 return await self.async_step_two_factor()
             if not errors:
                 return await self._finalize_setup(api, user_input)
@@ -140,36 +150,127 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=data_schema, errors=errors
         )
 
-    async def async_step_two_factor(self, user_input=None, retry=False):
-        """Collect the TOTP/confirmation code from the EduPage mobile app."""
+    async def async_step_two_factor(self, user_input=None):
+        """Collect the second factor for a new account."""
+
+        async def _done(api):
+            return await self._finalize_setup(api, self.user_input)
+
+        return await self._async_second_factor(
+            "two_factor", user_input, self._challenge, self._challenge_api, _done
+        )
+
+    async def _async_second_factor(self, step_id, user_input, challenge, api, on_done):
+        """Render and process the shared second-factor step.
+
+        The step offers four ways forward, each submitted with the same form:
+        enter a code, have the code emailed, resend the app notification, or
+        report that the login was confirmed in the app.
+        """
         errors = {}
-        if user_input is not None:
-            second_factor = getattr(self, "second_factor", None)
-            if second_factor is None:
-                errors["base"] = "cannot_connect"
-            else:
-                code = user_input[CONF_TWO_FACTOR_CODE].strip()
-                try:
-                    await self.hass.async_add_executor_job(
-                        second_factor.finish_with_code, code
+
+        if challenge is None or api is None:
+            errors["base"] = "cannot_connect"
+        elif user_input is not None:
+            code = (user_input.get(CONF_TWO_FACTOR_CODE) or "").strip()
+            try:
+                if user_input.get(CONF_SEND_EMAIL_CODE) or user_input.get(
+                    CONF_RESEND_NOTIFICATION
+                ):
+                    # EduPage rate-limits code requests. Honour its countdown
+                    # instead of firing a request it will only refuse, which
+                    # would restart the timer.
+                    remaining = self._cooldown_remaining()
+                    if remaining:
+                        _LOGGER.debug(
+                            "EduPage second-factor request suppressed; %s s left",
+                            remaining,
+                        )
+                        errors["base"] = "code_request_too_soon"
+                    elif user_input.get(CONF_SEND_EMAIL_CODE):
+                        await self.hass.async_add_executor_job(
+                            challenge.send_email_code
+                        )
+                        _LOGGER.debug("EduPage second-factor code sent by email")
+                    else:
+                        await self.hass.async_add_executor_job(
+                            challenge.resend_notifications
+                        )
+                        _LOGGER.debug("EduPage second-factor notification resent")
+                elif user_input.get(CONF_DEVICE_CONFIRMED):
+                    confirmed = await self.hass.async_add_executor_job(
+                        challenge.is_confirmed
                     )
-                    api = self.api
+                    if not confirmed:
+                        errors["base"] = "not_confirmed"
+                    else:
+                        await self.hass.async_add_executor_job(challenge.finish)
+                        if not api.is_logged_in:
+                            errors["base"] = "invalid_code"
+                        else:
+                            return await on_done(api)
+                elif code:
+                    await self.hass.async_add_executor_job(
+                        challenge.finish_with_code, code
+                    )
                     if not api.is_logged_in:
                         errors["base"] = "invalid_code"
                     else:
-                        return await self._finalize_setup(api, self.user_input)
-                except SecondFactorFailedException:
+                        return await on_done(api)
+                else:
                     errors["base"] = "invalid_code"
-                except Exception:  # noqa: BLE001
-                    _LOGGER.exception("Unexpected error completing 2FA code")
-                    errors["base"] = "cannot_connect"
+            except SecondFactorFailedException as e:
+                _LOGGER.debug("EduPage second factor rejected: %s", e)
+                errors["base"] = "invalid_code"
+            except RetryLaterException as e:
+                # EduPage rate-limits resend/email requests with a countdown.
+                _LOGGER.debug(
+                    "EduPage second-factor request too soon, retry in %s s",
+                    e.retry_in_seconds,
+                )
+                self._set_second_factor_cooldown(e.retry_in_seconds)
+            except RequestError as e:
+                _LOGGER.debug("EduPage second-factor request failed: %s", e)
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Unexpected error during EduPage second factor")
+                errors["base"] = "cannot_connect"
 
-        schema = vol.Schema({vol.Required(CONF_TWO_FACTOR_CODE): str})
+        return self._second_factor_form(step_id, errors, challenge)
+
+    def _set_second_factor_cooldown(self, seconds):
+        """Remember how long EduPage wants us to wait before the next request."""
+        self._cooldown_until = dt_util.utcnow() + timedelta(
+            seconds=max(0, int(seconds or 0))
+        )
+
+    def _cooldown_remaining(self):
+        """Seconds left on the resend/email cooldown, or 0 when it has expired."""
+        remaining = getattr(self, "_cooldown_until", None)
+        if remaining is None:
+            return 0
+        return max(0, int((remaining - dt_util.utcnow()).total_seconds()))
+
+    def _second_factor_form(self, step_id, errors, challenge):
+        """Build the second-factor form, including countdown and masked email."""
+        placeholders = {
+            "email": _mask_email(getattr(challenge, "email", None)),
+            "devices": ", ".join(getattr(challenge, "device_names", None) or []),
+            "retry_seconds": self._cooldown_remaining(),
+        }
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_TWO_FACTOR_CODE, default=""): str,
+                vol.Optional(CONF_SEND_EMAIL_CODE, default=False): bool,
+                vol.Optional(CONF_RESEND_NOTIFICATION, default=False): bool,
+                vol.Optional(CONF_DEVICE_CONFIRMED, default=False): bool,
+            }
+        )
         return self.async_show_form(
-            step_id="two_factor",
+            step_id=step_id,
             data_schema=schema,
             errors=errors,
-            description_placeholders={"hint": "Enter the confirmation code from the EduPage app."},
+            description_placeholders=placeholders,
         )
 
     async def _finalize_setup(self, api, user_input):
@@ -283,34 +384,16 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     e,
                 )
                 if "two-factor fields" in str(e):
-                    # Modern 2FA page: `edupage-api` can no longer parse the
-                    # challenge from hidden inputs. Drive the app-code flow
-                    # ourselves so the existing TOTP step can be shown.
-                    try:
-                        second_factor = await self.hass.async_add_executor_job(
-                            start_two_factor,
-                            api,
-                            username,
-                            password,
-                            subdomain,
-                        )
-                    except BadCredentialsException as e2:
-                        _LOGGER.error(
-                            "EduPage re-login failed: could not initialise second "
-                            "factor authentication for the configured account."
-                        )
-                        _LOGGER.debug(
-                            "EduPage 2FA init failed for %s@%s: %r",
-                            username,
-                            subdomain,
-                            e2,
-                        )
-                        errors["base"] = "invalid_auth"
+                    _LOGGER.error(
+                        "EduPage served a two-factor page that edupage-api could "
+                        "not parse. Please report it at %s",
+                        ISSUE_TRACKER,
+                    )
                 else:
                     _LOGGER.error(
                         "EduPage re-login failed: invalid username or password."
                     )
-                    errors["base"] = "invalid_auth"
+                errors["base"] = "invalid_auth"
             except SecondFactorFailedException as e:
                 _LOGGER.debug(
                     "EduPage re-login SecondFactorFailed for %s@%s: %r",
@@ -331,8 +414,8 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if not errors and second_factor is not None:
                 # 2FA required: capture the object, ask for the confirmation code.
-                self.reconfig_api = api
-                self.reconfig_second_factor = second_factor
+                self._challenge = second_factor
+                self._challenge_api = api
                 return await self.async_step_reconfigure_code()
 
             if not errors:
@@ -364,29 +447,17 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_reconfigure_code(self, user_input=None):
-        """Enter the confirmation code for reauthentication."""
-        errors = {}
-        if user_input is not None:
-            code = user_input[CONF_TWO_FACTOR_CODE].strip()
-            api = self.reconfig_api
-            try:
-                await self.hass.async_add_executor_job(
-                    self.reconfig_second_factor.finish_with_code, code
-                )
-                if api.is_logged_in:
-                    return await self._apply_reconfigure(api)
-                errors["base"] = "invalid_code"
-            except SecondFactorFailedException:
-                errors["base"] = "invalid_code"
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("Unexpected error completing 2FA code")
-                errors["base"] = "cannot_connect"
+        """Enter the second factor when reauthenticating."""
 
-        schema = vol.Schema({vol.Required(CONF_TWO_FACTOR_CODE): str})
-        return self.async_show_form(
-            step_id="reconfigure_code",
-            data_schema=schema,
-            errors=errors,
+        async def _done(api):
+            return await self._apply_reconfigure(api)
+
+        return await self._async_second_factor(
+            "reconfigure_code",
+            user_input,
+            getattr(self, "_challenge", None),
+            getattr(self, "_challenge_api", None),
+            _done,
         )
 
     async def _apply_reconfigure(self, api):

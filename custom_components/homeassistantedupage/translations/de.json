@@ -5,7 +5,9 @@
       "cannot_connect": "Keine Verbindung möglich",
       "invalid_auth": "Ungültige Zugangsdaten",
       "invalid_code": "Der Bestätigungscode ist ungültig oder abgelaufen.",
-      "captcha_required": "EduPage verlangt ein CAPTCHA. Versuchen Sie es später erneut oder prüfen Sie Ihre Zugangsdaten."
+      "captcha_required": "EduPage verlangt ein CAPTCHA. Versuchen Sie es später erneut oder prüfen Sie Ihre Zugangsdaten.",
+      "not_confirmed": "Die Anmeldung wurde in der EduPage-App noch nicht bestätigt. Öffnen Sie die App und bestätigen Sie die Anmeldung, dann versuchen Sie es erneut.",
+      "code_request_too_soon": "EduPage sendet noch keinen weiteren Code. Versuchen Sie es in {retry_seconds} Sekunden erneut."
     },
     "step": {
       "user": {
@@ -19,9 +21,12 @@
       },
       "two_factor": {
         "title": "Zwei-Faktor-Authentifizierung",
-        "description": "Eine Bestätigung in der EduPage-App ist erforderlich. Geben Sie den dort angezeigten Bestätigungscode ein.",
+        "description": "EduPage verlangt für dieses Konto einen zweiten Faktor.\n\nGeben Sie den Bestätigungscode aus der EduPage-App ein. Wenn Sie die App nicht erreichen können, lassen Sie den Code stattdessen per E-Mail zusenden, die App-Benachrichtigung erneut senden oder bestätigen, dass Sie diese Anmeldung bereits in der App genehmigt haben.\n\nDie hinterlegte E-Mail-Adresse ist `{email}`, die gekoppelten Geräte sind `{devices}`.\n\nEduPage begrenzt, wie oft ein Code angefordert werden kann. Wird eine Anfrage abgelehnt, warten Sie {retry_seconds} Sekunden und versuchen Sie es erneut.",
         "data": {
-          "two_factor_code": "Bestätigungscode"
+          "two_factor_code": "Bestätigungscode",
+          "send_email_code": "Code an meine E-Mail-Adresse senden",
+          "resend_notification": "App-Benachrichtigung erneut senden",
+          "device_confirmed": "Ich habe diese Anmeldung bereits in der App bestätigt"
         }
       },
       "select_student": {
@@ -40,9 +45,12 @@
       },
       "reconfigure_code": {
         "title": "Zwei-Faktor-Authentifizierung",
-        "description": "Geben Sie den in der EduPage-App angezeigten Bestätigungscode ein.",
+        "description": "EduPage verlangt für dieses Konto einen zweiten Faktor.\n\nGeben Sie den Bestätigungscode aus der EduPage-App ein. Wenn Sie die App nicht erreichen können, lassen Sie den Code stattdessen per E-Mail zusenden, die App-Benachrichtigung erneut senden oder bestätigen, dass Sie diese Anmeldung bereits in der App genehmigt haben.\n\nDie hinterlegte E-Mail-Adresse ist `{email}`, die gekoppelten Geräte sind `{devices}`.\n\nEduPage begrenzt, wie oft ein Code angefordert werden kann. Wird eine Anfrage abgelehnt, warten Sie {retry_seconds} Sekunden und versuchen Sie es erneut.",
         "data": {
-          "two_factor_code": "Bestätigungscode"
+          "two_factor_code": "Bestätigungscode",
+          "send_email_code": "Code an meine E-Mail-Adresse senden",
+          "resend_notification": "App-Benachrichtigung erneut senden",
+          "device_confirmed": "Ich habe diese Anmeldung bereits in der App bestätigt"
         }
       }
     },

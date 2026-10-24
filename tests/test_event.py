@@ -249,3 +249,39 @@ def test_device_lookup_is_scoped_to_config_entry(coordinator):
         assert _entity(coordinator)._device_id() == "device-id"
     registry.async_get_device_by_identifier.assert_called_once_with(("homeassistantedupage", "1"), "child-entry")
     registry.async_get_device.assert_not_called()
+
+
+@pytest.mark.parametrize("owner", ["child-entry", "another-child", None])
+def test_legacy_device_lookup_checks_entry_ownership(coordinator, owner):
+    from unittest.mock import Mock, patch
+
+    coordinator.config_entry = SimpleNamespace(entry_id="child-entry", options={})
+    device = SimpleNamespace(id="legacy-device", config_entries={owner}) if owner else None
+    registry = SimpleNamespace(async_get_device=Mock(return_value=device))
+    with patch("custom_components.homeassistantedupage.event.dr.async_get", return_value=registry):
+        assert _entity(coordinator)._device_id() == (
+            "legacy-device" if owner == "child-entry" else None
+        )
+    registry.async_get_device.assert_called_once_with(identifiers={("homeassistantedupage", "1")})
+
+
+def test_scoped_device_miss_never_falls_back_to_unscoped_lookup(coordinator):
+    from unittest.mock import Mock, patch
+
+    coordinator.config_entry = SimpleNamespace(entry_id="child-entry", options={})
+    registry = SimpleNamespace(
+        async_get_device_by_identifier=Mock(return_value=None),
+        async_get_device=Mock(return_value=SimpleNamespace(id="another-child")),
+    )
+    with patch("custom_components.homeassistantedupage.event.dr.async_get", return_value=registry):
+        assert _entity(coordinator)._device_id() is None
+    registry.async_get_device_by_identifier.assert_called_once_with(("homeassistantedupage", "1"), "child-entry")
+    registry.async_get_device.assert_not_called()
+
+
+def test_device_lookup_without_config_entry_does_not_access_registry(coordinator):
+    from unittest.mock import patch
+
+    with patch("custom_components.homeassistantedupage.event.dr.async_get") as get_registry:
+        assert _entity(coordinator)._device_id() is None
+    get_registry.assert_not_called()

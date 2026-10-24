@@ -116,9 +116,17 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
         entry = self.coordinator.config_entry
         if entry is None:
             return None
-        device = dr.async_get(self.coordinator.hass).async_get_device_by_identifier(
-            (DOMAIN, str(self._student_id)), entry.entry_id
-        )
+        registry = dr.async_get(self.coordinator.hass)
+        identifier = (DOMAIN, str(self._student_id))
+        lookup = getattr(registry, "async_get_device_by_identifier", None)
+        if lookup is not None:
+            device = lookup(identifier, entry.entry_id)
+        else:
+            # Older registries have globally unique identifiers. Still check
+            # ownership so another child's entry cannot supply the device ID.
+            device = registry.async_get_device(identifiers={identifier})
+            if device is not None and entry.entry_id not in device.config_entries:
+                return None
         return device.id if device is not None else None
 
     def _notifications(self) -> list[Any]:

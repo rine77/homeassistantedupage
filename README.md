@@ -47,8 +47,9 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 
 ## Installation
 
-This development version requires Home Assistant 2026.10.0 or newer. Earlier
-integration versions may support older Home Assistant releases.
+The declared minimum Home Assistant version remains 2023.11.0. Consultation
+support does not raise it. Full-suite validation currently covers HA 2026.10.1
+and 2026.10.2; compatibility tests also cover the older device lookup API.
 
 ### HACS
 

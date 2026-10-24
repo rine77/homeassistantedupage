@@ -1,148 +1,148 @@
 {
-    "config": {
-        "flow_title": "EduPage Setup Flow",
-        "error": {
-            "cannot_connect": "Keine Verbindung möglich",
-            "invalid_auth": "Ungültige Zugangsdaten",
-            "invalid_code": "Der Bestätigungscode ist ungültig oder abgelaufen.",
-            "captcha_required": "EduPage verlangt ein CAPTCHA. Versuchen Sie es später erneut oder prüfen Sie Ihre Zugangsdaten."
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "password": "Passwort",
-                    "username": "Username",
-                    "subdomain": "Subdomain"
-                },
-                "description": "Geben Sie EduPage-Benutzername, Passwort und Schul-Subdomain ein.\n\nWenn Sie 2FA aktiviert haben, werden Sie nach einem Bestätigungscode aus der EduPage-App gefragt.",
-                "title": "edupage account login"
-            },
-            "two_factor": {
-                "title": "Zwei-Faktor-Authentifizierung",
-                "description": "Eine Bestätigung in der EduPage-App ist erforderlich. Geben Sie den dort angezeigten Bestätigungscode ein.",
-                "data": {
-                    "two_factor_code": "Bestätigungscode"
-                }
-            },
-            "select_student": {
-                "title": "Schüler auswählen",
-                "description": "Wählen Sie aus, welchen Schüler diese Integration verfolgen soll.",
-                "data": {
-                    "student": "Schüler"
-                }
-            },
-            "reconfigure": {
-                "title": "EduPage erneut authentifizieren",
-                "description": "Melden Sie sich erneut an, um die abgelaufene Sitzung zu erneuern. Wenn 2FA aktiviert ist, geben Sie den Bestätigungscode aus der EduPage-App ein.",
-                "data": {
-                    "two_factor_code": "Bestätigungscode"
-                }
-            },
-            "reconfigure_code": {
-                "title": "Zwei-Faktor-Authentifizierung",
-                "description": "Geben Sie den in der EduPage-App angezeigten Bestätigungscode ein.",
-                "data": {
-                    "two_factor_code": "Bestätigungscode"
-                }
-            }
-        },
-        "abort": {
-            "already_configured": "Das Gerät ist bereits konfiguriert",
-            "no_students_found": "Auf diesem Konto wurden keine Schüler gefunden.",
-            "reconfigured": "Die gespeicherte Sitzung wurde erfolgreich aktualisiert.",
-            "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}",
-            "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}",
-            "reauth_successful": "Erneute Anmeldung erfolgreich."
-        }
+  "config": {
+    "flow_title": "EduPage Setup Flow",
+    "error": {
+      "cannot_connect": "Keine Verbindung möglich",
+      "invalid_auth": "Ungültige Zugangsdaten",
+      "invalid_code": "Der Bestätigungscode ist ungültig oder abgelaufen.",
+      "captcha_required": "EduPage verlangt ein CAPTCHA. Versuchen Sie es später erneut oder prüfen Sie Ihre Zugangsdaten."
     },
-    "options": {
-        "step": {
-            "init": {
-                "title": "Fächer auswählen",
-                "description": "Wählen Sie die Fächer aus, für die Notensensoren erstellt werden sollen. Andere EduPage-Sensoren sind davon nicht betroffen.",
-                "data": {
-                    "subject_ids": "Fächer",
-                    "consultations_my_teachers": "Sprechstunden nur bei Lehrkräften meines Kindes",
-                    "participation_deadline_hours": "Warnung vor Fristablauf (Stunden)"
-                }
-            }
+    "step": {
+      "user": {
+        "data": {
+          "password": "Passwort",
+          "username": "Username",
+          "subdomain": "Subdomain"
+        },
+        "description": "Geben Sie EduPage-Benutzername, Passwort und Schul-Subdomain ein.\n\nWenn Sie 2FA aktiviert haben, werden Sie nach einem Bestätigungscode aus der EduPage-App gefragt.",
+        "title": "edupage account login"
+      },
+      "two_factor": {
+        "title": "Zwei-Faktor-Authentifizierung",
+        "description": "Eine Bestätigung in der EduPage-App ist erforderlich. Geben Sie den dort angezeigten Bestätigungscode ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
         }
+      },
+      "select_student": {
+        "title": "Schüler auswählen",
+        "description": "Wählen Sien Sie aus, welchen Schüler diese Integration verfolgen soll.",
+        "data": {
+          "student": "Schüler"
+        }
+      },
+      "reconfigure": {
+        "title": "EduPage erneut authentifizieren",
+        "description": "Melden Sie sich erneut an, um die abgelaufene Sitzung zu erneuern. Wenn 2FA aktiviert ist, geben Sie den Bestätigungscode aus der EduPage-App ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
+        }
+      },
+      "reconfigure_code": {
+        "title": "Zwei-Faktor-Authentifizierung",
+        "description": "Geben Sie den in der EduPage-App angezeigten Bestätigungscode ein.",
+        "data": {
+          "two_factor_code": "Bestätigungscode"
+        }
+      }
     },
-    "device_automation": {
-        "trigger_type": {
-            "new_grade": "Eine neue Note wurde empfangen",
-            "new_homework": "Eine neue Hausaufgabe wurde empfangen",
-            "new_message": "Eine neue Nachricht wurde empfangen",
-            "new_exam": "Eine neue Prüfung wurde empfangen",
-            "timetable_change": "Eine Stundenplanänderung wurde empfangen",
-            "arrival_at_school": "Eine Ankunft in der Schule wurde erfasst",
-            "consultation_block_published": "Sprechstundenblock veröffentlicht",
-            "consultation_booked": "Sprechstunde gebucht",
-            "consultation_booking_opened": "Buchung von Sprechstunden geöffnet",
-            "consultation_changed": "Sprechstunde geändert",
-            "consultation_cancelled": "Sprechstunde abgesagt",
-            "consultation_booking_closing": "Buchungsfrist für Sprechstunden endet bald",
-            "registration_opened": "Anmeldung geöffnet",
-            "registration_deadline_soon": "Anmeldefrist endet bald"
-        }
-    },
-    "exceptions": {
-        "consultation_rejected": {
-            "message": "EduPage hat die Anfrage abgelehnt. Prüfe die Buchungsregeln auf der Website."
-        },
-        "slot_taken": {
-            "message": "Dieser Termin ist nicht mehr frei."
-        },
-        "booking_closed": {
-            "message": "Der Buchungszeitraum ist geschlossen."
-        },
-        "booking_limit": {
-            "message": "In diesem Block besteht bereits eine eigene Buchung oder ein Buchungslimit wurde erreicht."
-        },
-        "booking_not_owned": {
-            "message": "Die eigene Buchung wurde nicht gefunden oder die Stornierung ist nicht eindeutig."
-        },
-        "booking_uncertain": {
-            "message": "Das Ergebnis des Schreibvorgangs konnte nicht bestätigt werden. Prüfe EduPage, bevor du es erneut versuchst."
-        },
-        "entry_not_loaded": {
-            "message": "Der ausgewählte Eintrag des Kindes ist nicht geladen."
-        },
-        "session_expired": {
-            "message": "Die Sitzung ist abgelaufen. Melde dich erneut an."
-        },
-        "invalid_start": {
-            "message": "Verwende Datum und Uhrzeit im ISO-Format einschließlich Zeitzone."
-        },
-        "select_consultation": {
-            "message": "Wähle zuerst eine Sprechstunde aus."
-        },
-        "note_unsupported": {
-            "message": "Notizen von Teilnehmenden werden vom untersuchten Buchungsprotokoll nicht unterstützt."
-        },
-        "slot_not_found": {
-            "message": "Diese Uhrzeit existiert in diesem Sprechstundenblock nicht."
-        },
-        "unrelated_teacher": {
-            "message": "Die Lehrkraft ist für dieses Kind nicht bestätigt. Prüfe den Eintrag des Kindes oder setze ausdrücklich allow_unrelated_teacher."
-        }
-    },
-    "entity": {
-        "select": {
-            "consultation_slot": {
-                "name": "Verfügbare Sprechstunde"
-            },
-            "consultation_booking": {
-                "name": "Gebuchte Sprechstunde"
-            }
-        },
-        "button": {
-            "book_consultation": {
-                "name": "Ausgewählte Sprechstunde buchen"
-            },
-            "cancel_consultation": {
-                "name": "Ausgewählte Sprechstunde stornieren"
-            }
-        }
+    "abort": {
+      "already_configured": "Das Gerät ist bereits konfiguriert",
+      "no_students_found": "Auf diesem Konto wurden keine Schüler gefunden.",
+      "reconfigured": "Die gespeicherte Sitzung wurde erfolgreich aktualisiert.",
+      "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}",
+      "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}",
+      "reauth_successful": "Erneute Anmeldung erfolgreich."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Fächer auswählen",
+        "description": "Wählen Sien Sie die Fächer aus, für die Notensensoren erstellt werden sollen. Andere EduPage-Sensoren sind davon nicht betroffen.",
+        "data": {
+          "subject_ids": "Fächer",
+          "consultations_my_teachers": "Sprechstunden nur bei Lehrkräften meines Kindes",
+          "participation_deadline_hours": "Warnung vor Fristablauf (Stunden)"
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_grade": "Eine neue Note wurde empfangen",
+      "new_homework": "Eine neue Hausaufgabe wurde empfangen",
+      "new_message": "Eine neue Nachricht wurde empfangen",
+      "new_exam": "Eine neue Prüfung wurde empfangen",
+      "timetable_change": "Eine Stundenplanänderung wurde empfangen",
+      "arrival_at_school": "Eine Ankunft in der Schule wurde erfasst",
+      "consultation_block_published": "Sprechstundenblock veröffentlicht",
+      "consultation_booked": "Sprechstunde gebucht",
+      "consultation_booking_opened": "Buchung von Sprechstunden geöffnet",
+      "consultation_changed": "Sprechstunde geändert",
+      "consultation_cancelled": "Sprechstunde abgesagt",
+      "consultation_booking_closing": "Buchungsfrist für Sprechstunden endet bald",
+      "registration_opened": "Anmeldung geöffnet",
+      "registration_deadline_soon": "Anmeldefrist endet bald"
+    }
+  },
+  "exceptions": {
+    "consultation_rejected": {
+      "message": "EduPage hat die Anfrage abgelehnt. Prüfen Sie die Buchungsregeln auf der Website."
+    },
+    "slot_taken": {
+      "message": "Dieser Termin ist nicht mehr frei."
+    },
+    "booking_closed": {
+      "message": "Der Buchungszeitraum ist geschlossen."
+    },
+    "booking_limit": {
+      "message": "In diesem Block besteht bereits eine eigene Buchung oder ein Buchungslimit wurde erreicht."
+    },
+    "booking_not_owned": {
+      "message": "Die eigene Buchung wurde nicht gefunden oder die Stornierung ist nicht eindeutig."
+    },
+    "booking_uncertain": {
+      "message": "Das Ergebnis des Schreibvorgangs konnte nicht bestätigt werden. Prüfen Sie EduPage, bevor Sie es erneut versuchen."
+    },
+    "entry_not_loaded": {
+      "message": "Der ausgewählte Eintrag des Kindes ist nicht geladen."
+    },
+    "session_expired": {
+      "message": "Die Sitzung ist abgelaufen. Melden Sie sich erneut an."
+    },
+    "invalid_start": {
+      "message": "Verwenden Sie Datum und Uhrzeit im ISO-Format einschließlich Zeitzone."
+    },
+    "select_consultation": {
+      "message": "Wählen Sie zuerst eine Sprechstunde aus."
+    },
+    "note_unsupported": {
+      "message": "Notizen von Teilnehmenden werden vom untersuchten Buchungsprotokoll nicht unterstützt."
+    },
+    "slot_not_found": {
+      "message": "Diese Uhrzeit existiert in diesem Sprechstundenblock nicht."
+    },
+    "unrelated_teacher": {
+      "message": "Die Lehrkraft ist für dieses Kind nicht bestätigt. Prüfen Sie den Eintrag des Kindes oder setzen Sie ausdrücklich allow_unrelated_teacher."
+    }
+  },
+  "entity": {
+    "select": {
+      "consultation_slot": {
+        "name": "Verfügbare Sprechstunde"
+      },
+      "consultation_booking": {
+        "name": "Gebuchte Sprechstunde"
+      }
+    },
+    "button": {
+      "book_consultation": {
+        "name": "Ausgewählte Sprechstunde buchen"
+      },
+      "cancel_consultation": {
+        "name": "Ausgewählte Sprechstunde stornieren"
+      }
+    }
+  }
 }

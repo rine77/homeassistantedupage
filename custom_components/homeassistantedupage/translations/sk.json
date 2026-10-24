@@ -63,19 +63,9 @@
                 "data": {
                     "subject_ids": "Predmety",
                     "consultations_my_teachers": "Konzultácie iba s učiteľmi môjho dieťaťa",
-                    "participation_deadline_hours": "Upozornenie pred uzávierkou (hodiny)",
-                    "convert_letter_grades": "Prevádzať písmenové známky na výpočet priemerov",
-                    "letter_grade_a": "Číselná hodnota známky A",
-                    "letter_grade_b": "Číselná hodnota známky B",
-                    "letter_grade_c": "Číselná hodnota známky C",
-                    "letter_grade_d": "Číselná hodnota známky D",
-                    "letter_grade_e": "Číselná hodnota známky E",
-                    "letter_grade_f": "Číselná hodnota známky F"
+                    "participation_deadline_hours": "Upozornenie pred uzávierkou (hodiny)"
                 }
             }
-        },
-        "error": {
-            "invalid_letter_value": "Zadajte konečné číslo od 0 do 100."
         }
     },
     "device_automation": {

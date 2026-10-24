@@ -63,19 +63,9 @@
                 "data": {
                     "subject_ids": "Asignaturas",
                     "consultations_my_teachers": "Tutorías solo con docentes de mi hijo o hija",
-                    "participation_deadline_hours": "Aviso antes del plazo límite (horas)",
-                    "convert_letter_grades": "Convertir las calificaciones con letras para calcular promedios",
-                    "letter_grade_a": "Valor numérico de la calificación A",
-                    "letter_grade_b": "Valor numérico de la calificación B",
-                    "letter_grade_c": "Valor numérico de la calificación C",
-                    "letter_grade_d": "Valor numérico de la calificación D",
-                    "letter_grade_e": "Valor numérico de la calificación E",
-                    "letter_grade_f": "Valor numérico de la calificación F"
+                    "participation_deadline_hours": "Aviso antes del plazo límite (horas)"
                 }
             }
-        },
-        "error": {
-            "invalid_letter_value": "Introduce un número finito entre 0 y 100."
         }
     },
     "device_automation": {

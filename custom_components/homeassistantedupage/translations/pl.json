@@ -63,19 +63,9 @@
                 "data": {
                     "subject_ids": "Przedmioty",
                     "consultations_my_teachers": "Konsultacje tylko z nauczycielami mojego dziecka",
-                    "participation_deadline_hours": "Ostrzeżenie o upływie terminu (godziny)",
-                    "convert_letter_grades": "Przeliczaj oceny literowe do obliczania średnich",
-                    "letter_grade_a": "Wartość liczbowa oceny A",
-                    "letter_grade_b": "Wartość liczbowa oceny B",
-                    "letter_grade_c": "Wartość liczbowa oceny C",
-                    "letter_grade_d": "Wartość liczbowa oceny D",
-                    "letter_grade_e": "Wartość liczbowa oceny E",
-                    "letter_grade_f": "Wartość liczbowa oceny F"
+                    "participation_deadline_hours": "Ostrzeżenie o upływie terminu (godziny)"
                 }
             }
-        },
-        "error": {
-            "invalid_letter_value": "Wpisz skończoną liczbę od 0 do 100."
         }
     },
     "device_automation": {

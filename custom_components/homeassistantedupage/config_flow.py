@@ -1,5 +1,4 @@
 import logging
-import math
 import voluptuous as vol
 
 from edupage_api import Edupage
@@ -26,13 +25,6 @@ from .const import (
     DOMAIN,
 )
 from .twofactor import start_two_factor
-from .grade_average import CONF_LETTER_GRADES, DEFAULT_LETTER_MAPPING
-
-def _letter_value(value):
-    number = vol.Coerce(float)(value)
-    if not math.isfinite(number) or not 0 <= number <= 100:
-        raise vol.Invalid("Letter value must be a finite number from 0 to 100")
-    return number
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -455,19 +447,8 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
             )
         ]
 
-        errors = {}
         if user_input is not None:
-            user_input = dict(user_input)
-            for letter in DEFAULT_LETTER_MAPPING:
-                key = f"letter_grade_{letter.lower()}"
-                if key in user_input:
-                    try:
-                        user_input[key] = _letter_value(user_input[key])
-                    except vol.Invalid:
-                        errors[key] = "invalid_letter_value"
-                        user_input[key] = self.config_entry.options.get(key, DEFAULT_LETTER_MAPPING[letter])
-            if not errors:
-                return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(title="", data=user_input)
 
         available_subject_ids = [
             option["value"] for option in subject_options
@@ -484,7 +465,6 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
-            errors=errors,
             data_schema=vol.Schema(
                 {
                     vol.Required(
@@ -497,14 +477,6 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
                             mode=selector.SelectSelectorMode.DROPDOWN,
                         )
                     ),
-                    vol.Optional(CONF_LETTER_GRADES,
-                                 default=self.config_entry.options.get(CONF_LETTER_GRADES, False)): bool,
-                    **{
-                        vol.Optional(f"letter_grade_{letter.lower()}",
-                                     default=(user_input or self.config_entry.options).get(f"letter_grade_{letter.lower()}", value)):
-                            vol.All(vol.Coerce(float), vol.Range(min=0, max=100))
-                        for letter, value in DEFAULT_LETTER_MAPPING.items()
-                    },
                     vol.Optional(CONF_CONSULTATIONS_MY_TEACHERS,
                                  default=self.config_entry.options.get(CONF_CONSULTATIONS_MY_TEACHERS, True)): bool,
                     vol.Optional(CONF_DEADLINE_HOURS,

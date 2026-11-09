@@ -26,7 +26,7 @@ The integration is based on the [edupage-api](https://github.com/EdupageAPI/edup
 - Configurable per-subject grade sensors
 - Notification sensor covering all available EduPage event types
 - Event entity for automation-friendly new grade, homework, message, exam,
-  timetable-change, and school-arrival events
+  timetable-change, school-arrival, and behaviour-note events
 - Read-only homework to-do list with deadlines and completion status
 - Summary sensors for open and overdue homework, the next deadline, and
   upcoming exams
@@ -107,7 +107,7 @@ The exact entity IDs are assigned by Home Assistant and may differ from the exam
 | Assignments calendar | Current or next assignment | Homework deadlines and exams as all-day events |
 | Subject sensor | Number of grades | Grade details in attributes |
 | Notification sensor | Number of notifications | Structured events, event counts, and legacy flat attributes |
-| Event entity | Timestamp of the latest supported event | New grade, homework, message, exam, timetable-change, and arrival events |
+| Event entity | Timestamp of the latest supported event | New grade, homework, message, exam, timetable-change, arrival, and behaviour-note events |
 | Homework to-do list | Number of incomplete homework items | Native read-only to-do items with deadlines and completion status |
 | Open-homework sensor | Number of incomplete homework items | Includes dated and undated homework |
 | Overdue-homework sensor | Number of overdue homework items | Incomplete homework with a deadline before today |
@@ -368,6 +368,7 @@ Supported Home Assistant event types are:
 - `new_exam`
 - `timetable_change`
 - `arrival_at_school`
+- `new_note` (behaviour note: praise or reprimand, EduPage "Včielka")
 
 Example automation trigger:
 
@@ -397,6 +398,13 @@ available, including the grade, percentage, maximum points, class average,
 title, comment, and teacher. EduPage uses different identifiers for timeline
 events and grades; the integration resolves both direct and nested references
 before attaching these attributes.
+
+Behaviour notes (EduPage timeline type `vcelicka`, praise and reprimands) carry
+no free text. New-note events and the notification sensor expose the note
+category as `note_label` (for example *Nerešpektuje pokyny učiteľa*) and the
+raw category code as `note_type`; `text` falls back to the label. Because a
+parent account shares one timeline across siblings, a note is only emitted
+for the student it is addressed to.
 
 There is currently no dedicated EduPage dashboard card. Home Assistant's standard calendar, entity, Markdown, and template cards can be used instead.
 

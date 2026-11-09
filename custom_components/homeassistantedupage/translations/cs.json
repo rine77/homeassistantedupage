@@ -81,7 +81,8 @@
       "new_message": "Byla přijata nová zpráva",
       "new_exam": "Byla oznámena nová písemka nebo zkoušení",
       "timetable_change": "Byla oznámena změna rozvrhu",
-      "arrival_at_school": "Byl zaznamenán příchod do školy"
+      "arrival_at_school": "Byl zaznamenán příchod do školy",
+      "new_note": "Byla přidána pochvala nebo poznámka"
     }
   }
 }

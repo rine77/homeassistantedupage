@@ -80,7 +80,8 @@
       "new_message": "Eine neue Nachricht wurde empfangen",
       "new_exam": "Eine neue Prüfung wurde empfangen",
       "timetable_change": "Eine Stundenplanänderung wurde empfangen",
-      "arrival_at_school": "Eine Ankunft in der Schule wurde erfasst"
+      "arrival_at_school": "Eine Ankunft in der Schule wurde erfasst",
+      "new_note": "Eine neue Verhaltensnotiz wurde erfasst"
     }
   }
 }

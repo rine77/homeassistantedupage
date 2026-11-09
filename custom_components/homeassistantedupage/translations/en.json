@@ -80,7 +80,8 @@
       "new_message": "A new message was received",
       "new_exam": "A new exam was received",
       "timetable_change": "A timetable change was received",
-      "arrival_at_school": "An arrival at school was recorded"
+      "arrival_at_school": "An arrival at school was recorded",
+      "new_note": "A new behaviour note was received"
     }
   }
 }

@@ -81,7 +81,8 @@
       "new_message": "Se recibió un nuevo mensaje",
       "new_exam": "Se recibió un nuevo examen",
       "timetable_change": "Se recibió un cambio en el horario",
-      "arrival_at_school": "Se registró una llegada a la escuela"
+      "arrival_at_school": "Se registró una llegada a la escuela",
+      "new_note": "Se recibió una nueva nota de comportamiento"
     }
   }
 }

@@ -81,7 +81,8 @@
       "new_message": "Bola prijatá nová správa",
       "new_exam": "Bola zadaná nová písomka alebo skúšanie",
       "timetable_change": "Bola zverejnená zmena rozvrhu alebo suplovanie",
-      "arrival_at_school": "Bol zaznamenaný príchod do školy"
+      "arrival_at_school": "Bol zaznamenaný príchod do školy",
+      "new_note": "Bola pridaná pochvala alebo poznámka"
     }
   }
 }

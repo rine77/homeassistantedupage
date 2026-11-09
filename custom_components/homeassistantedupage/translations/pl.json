@@ -81,7 +81,8 @@
       "new_message": "Otrzymano nową wiadomość",
       "new_exam": "Dodano nowy sprawdzian lub egzamin",
       "timetable_change": "Otrzymano zmianę w planie lekcji",
-      "arrival_at_school": "Zarejestrowano przybycie do szkoły"
+      "arrival_at_school": "Zarejestrowano przybycie do szkoły",
+      "new_note": "Dodano nową uwagę lub pochwałę"
     }
   }
 }

@@ -12,6 +12,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from .assignment_helpers import event_matches_student, event_recipient
+from .note_helpers import NOTE_TYPES, note_attributes
 from .const import (
     CONF_STUDENT_ID,
     CONF_STUDENT_NAME,
@@ -696,6 +697,15 @@ class EduPageNotificationSensor(StateRestoringSensor):
                 "timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             }
 
+            if item["type"] in NOTE_TYPES:
+                item.update(
+                    {
+                        key: value
+                        for key, value in note_attributes(event).items()
+                        if value is not None
+                    }
+                )
+
             if event.additional_data:
                 if "date" in event.additional_data:
                     item["deadline"] = event.additional_data["date"]
@@ -727,6 +737,8 @@ class EduPageNotificationSensor(StateRestoringSensor):
                 "subject",
                 "author",
                 "recipient",
+                "note_label",
+                "note_type",
             ):
                 if optional_key in item:
                     flat_attributes[

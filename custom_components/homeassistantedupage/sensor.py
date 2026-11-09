@@ -737,6 +737,8 @@ class EduPageNotificationSensor(StateRestoringSensor):
                 "subject",
                 "author",
                 "recipient",
+                "note_label",
+                "note_type",
             ):
                 if optional_key in item:
                     flat_attributes[

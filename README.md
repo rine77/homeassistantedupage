@@ -402,9 +402,17 @@ before attaching these attributes.
 Behaviour notes (EduPage timeline type `vcelicka`, praise and reprimands) carry
 no free text. New-note events and the notification sensor expose the note
 category as `note_label` (for example *Nerešpektuje pokyny učiteľa*) and the
-raw category code as `note_type`; `text` falls back to the label. Because a
-parent account shares one timeline across siblings, a note is only emitted
-for the student it is addressed to.
+raw category code as `note_type`; `text` falls back to the label. In the
+notification sensor both fields are also available as legacy flat attributes
+(`event_N_note_label`, `event_N_note_type`) and are omitted when EduPage does
+not provide them.
+
+Because a behaviour note is personal and a parent account shares one timeline
+across siblings, a `new_note` event is only emitted when the note can be
+reliably attributed to the student: the recipient must match the student by
+person ID or by full name (ignoring case and accents). Notes with a missing,
+school-wide, class, group, or otherwise ambiguous recipient are not emitted.
+The notification sensor still lists every timeline item, unchanged.
 
 There is currently no dedicated EduPage dashboard card. Home Assistant's standard calendar, entity, Markdown, and template cards can be used instead.
 

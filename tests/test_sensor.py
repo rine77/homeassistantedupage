@@ -383,3 +383,75 @@ def test_single_oversized_notification_is_omitted(coordinator):
     assert attrs["events_truncated"] is True
     assert attrs["events"] == []
     assert "event_1_id" not in attrs
+
+
+async def test_behaviour_note_metadata_is_exposed(hass, coordinator):
+    """Notes expose label, type and a text fallback in both formats."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(
+            1,
+            "vcelicka",
+            None,
+            datetime(2026, 11, 9, 13, 7),
+            additional_data={
+                "typ": "disrespecting",
+                "typ_text": "Nerešpektuje pokyny učiteľa",
+                "predmetid": 1,
+            },
+            recipient="Max Kovaľ",
+        )
+    ]
+    attrs = sensor.extra_state_attributes
+    ev = attrs["events"][0]
+    assert ev["type"] == "vcelicka"
+    assert ev["text"] == "Nerešpektuje pokyny učiteľa"
+    assert ev["note_label"] == "Nerešpektuje pokyny učiteľa"
+    assert ev["note_type"] == "disrespecting"
+    assert ev["subject"] == "Maths"
+    assert attrs["event_1_text"] == "Nerešpektuje pokyny učiteľa"
+    assert attrs["event_1_note_label"] == "Nerešpektuje pokyny učiteľa"
+    assert attrs["event_1_note_type"] == "disrespecting"
+
+
+async def test_behaviour_note_keeps_existing_text(hass, coordinator):
+    """A note with its own text keeps it; the label is still exposed."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(
+            1,
+            "vcelicka",
+            "Custom text",
+            datetime(2026, 11, 9),
+            additional_data={"typ": "praise", "typ_text": "Label"},
+        )
+    ]
+    ev = sensor.extra_state_attributes["events"][0]
+    assert ev["text"] == "Custom text"
+    assert ev["note_label"] == "Label"
+
+
+@pytest.mark.parametrize("additional_data", [None, {}, {"typ_text": ""}, {"typ": None}])
+async def test_behaviour_note_with_missing_metadata(hass, coordinator, additional_data):
+    """Missing note metadata is omitted instead of exposed as empty values."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(1, "vcelicka", None, datetime(2026, 11, 9), additional_data=additional_data)
+    ]
+    attrs = sensor.extra_state_attributes
+    ev = attrs["events"][0]
+    assert ev["text"] is None
+    assert "note_label" not in ev
+    assert "note_type" not in ev
+    assert "event_1_note_label" not in attrs
+    assert "event_1_note_type" not in attrs
+
+
+async def test_non_note_events_have_no_note_attributes(hass, coordinator):
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(1, "homework", "a", datetime(2026, 9, 1), additional_data={"typ_text": "x"})
+    ]
+    attrs = sensor.extra_state_attributes
+    assert "note_label" not in attrs["events"][0]
+    assert "event_1_note_label" not in attrs

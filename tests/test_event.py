@@ -301,3 +301,31 @@ def test_behaviour_note_for_sibling_is_not_triggered(coordinator):
 
     assert triggered == []
     assert 31 in entity._known_event_ids
+
+
+@pytest.mark.parametrize("recipient", [None, "*", "Whole school", "5.A"])
+def test_behaviour_note_without_reliable_recipient_is_not_triggered(
+    coordinator, recipient
+):
+    """Notes that cannot be attributed to one student are never emitted."""
+    entity = _entity(coordinator)
+    triggered = []
+    entity._trigger_event = lambda event_type, data: triggered.append(
+        (event_type, data)
+    )
+    entity.async_write_ha_state = lambda: None
+
+    coordinator.data["notifications"] = [
+        _event(
+            32,
+            "vcelicka",
+            text=None,
+            recipient=recipient,
+            additional_data=_NOTE_DATA,
+        )
+    ]
+    entity._handle_coordinator_update()
+    entity._handle_coordinator_update()
+
+    assert triggered == []
+    assert 32 in entity._known_event_ids

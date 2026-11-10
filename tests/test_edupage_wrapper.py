@@ -338,8 +338,116 @@ async def test_mid_read_expiry_is_auth_failure_and_stops_next_network_call():
     api = MagicMock()
     api.get_subjects.side_effect = ExpiredSessionException()
     wrapper = _wrapper(api)
+    wrapper._verify_account_session = MagicMock(return_value=False)
     with pytest.raises(ConfigEntryAuthFailed):
         await wrapper.get_subjects()
     with pytest.raises(ConfigEntryAuthFailed):
         await wrapper.get_students()
     api.get_students.assert_not_called()
+
+
+@pytest.mark.parametrize("body,status,url", [
+    ('userhome({"userid":"Rodic1"});<input type="password">', 200, "https://school.edupage.org/user/"),
+    ('maintenance', 503, "https://school.edupage.org/user/"),
+    ('malformed bootstrap', 200, "https://school.edupage.org/user/"),
+])
+async def test_module_auth_signal_requires_account_confirmation(body, status, url):
+    from edupage_api.exceptions import ExpiredSessionException
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+
+    api = MagicMock()
+    api.subdomain = "school"
+    api.get_subjects.side_effect = ExpiredSessionException("PRIVATE MODULE PAYLOAD")
+    api.session.get.return_value = MagicMock(text=body, status_code=status, url=url)
+    wrapper = _wrapper(api)
+    with pytest.raises(UpdateFailed, match="reauthentication not requested") as caught:
+        await wrapper.get_subjects()
+    assert not isinstance(caught.value, ConfigEntryAuthFailed)
+    assert not wrapper.auth_failed
+    assert "PRIVATE" not in str(caught.value)
+    api.session.get.assert_called_once_with("https://school.edupage.org/user/")
+
+
+async def test_confirmed_account_login_redirect_is_auth_failure():
+    from edupage_api.exceptions import ExpiredSessionException
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+
+    api = MagicMock()
+    api.subdomain = "school"
+    api.get_subjects.side_effect = ExpiredSessionException()
+    api.session.get.return_value = MagicMock(status_code=200, url="https://school.edupage.org/login/")
+    api.get_subjects.__name__ = "get_subjects"
+    wrapper = _wrapper(api)
+    with pytest.raises(ConfigEntryAuthFailed, match="get_subjects"):
+        await wrapper.get_subjects()
+    assert wrapper.auth_failed
+
+
+async def test_null_timetable_rpc_gets_one_verified_child_read():
+    import json
+    from datetime import date
+    from edupage_api import Edupage as Client
+    from edupage_api.people import EduStudent
+    from edupage_api.timetables import Timetables
+
+    api = Client()
+    api.is_logged_in = True
+    api.data = {"userid": "Rodic1"}
+    api.subdomain = "school"
+    api.username = "parent"
+    api.session = MagicMock()
+    api.session.get.return_value = MagicMock(text="OK", url="https://school.edupage.org/user/")
+    student = EduStudent.__new__(EduStudent)
+    student.person_id = -1
+    contexts = []
+
+    def timetable_response(*args, **kwargs):
+        contexts.append(api._selected_child_id)
+        result = None if len(contexts) == 1 else {"ttitems": []}
+        return MagicMock(content=json.dumps({"r": result}).encode())
+
+    api.session.post.side_effect = timetable_response
+    wrapper = _wrapper(api)
+    with patch.object(Timetables, "get_school_year", return_value=2026), patch(
+        "edupage_api.timetables.People.get_student", return_value=student,
+    ):
+        result = await wrapper.get_timetable(student, date(2026, 11, 10))
+    assert list(result) == []
+    assert contexts == [None, -1]
+    assert not wrapper.auth_failed
+    assert api._selected_child_id is None
+    assert all(call.kwargs["json"]["__args"][1]["id"] == "-1" for call in api.session.post.call_args_list)
+
+
+async def test_failed_child_timetable_read_is_not_retried_or_reauthenticated():
+    from edupage_api.exceptions import MissingDataException
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+
+    api = MagicMock()
+    api.get_timetable.side_effect = MissingDataException("r is null")
+    api.get_my_timetable.side_effect = MissingDataException("r still null")
+    wrapper = _wrapper(api)
+    with pytest.raises(UpdateFailed) as caught:
+        await wrapper.get_timetable(MagicMock(), "2026-11-10")
+    assert not isinstance(caught.value, ConfigEntryAuthFailed)
+    assert not wrapper.auth_failed
+    api.get_timetable.assert_called_once()
+    api.get_my_timetable.assert_called_once()
+    api.switch_to_parent.assert_called_once()
+
+
+async def test_false_grade_auth_signal_does_not_log_suppressed_payload(caplog):
+    from edupage_api.exceptions import ExpiredSessionException
+
+    api = MagicMock()
+    api.subdomain = "school"
+    api.get_grades.side_effect = ExpiredSessionException("PRIVATE MODULE PAYLOAD")
+    api.session.get.return_value = MagicMock(
+        status_code=200, url="https://school.edupage.org/user/",
+        text='userhome({"userid":"Rodic1"});',
+    )
+    wrapper = _wrapper(api)
+    with pytest.raises(UpdateFailed):
+        await wrapper.get_grades()
+    assert "PRIVATE MODULE PAYLOAD" not in caplog.text
+    assert not wrapper.auth_failed

@@ -262,3 +262,37 @@ async def test_cancelled_background_read_keeps_child_lock_until_restored():
         await task
     assert not lock.locked()
     coordinator.async_set_updated_data.assert_not_called()
+
+
+async def test_missing_timetable_then_module_auth_signal_preserves_other_sources():
+    """Reproduce the supplied dev9 order without turning it into a reauth loop."""
+    from edupage_api.exceptions import ExpiredSessionException, MissingDataException
+
+    w = wrapper()
+    api = w.api
+    api.subdomain = "school"
+    api.get_grades.return_value = [SimpleNamespace(subject_id=1)]
+    api.get_text_grades.return_value = []
+    api.get_subjects.return_value = []
+    api.get_notifications.return_value = []
+    api.get_timetable.side_effect = MissingDataException("r is null")
+    api.get_my_timetable.side_effect = MissingDataException("r still null")
+    api.get_meals.return_value = None
+    api.get_timetable_changes.return_value = []
+    api.get_missing_teachers.return_value = []
+    api.get_next_ringing_time.return_value = None
+    api.get_school_year.return_value = None
+    api.get_grades_for_term.return_value = []
+    api.get_registrations.side_effect = ExpiredSessionException("module response")
+    api.session.get.return_value = SimpleNamespace(
+        status_code=200, url="https://school.edupage.org/user/",
+        text='userhome({"userid":"Rodic1"});',
+    )
+    result = await _collect_data(w, SimpleNamespace(person_id=1), "Student", include_consultations=False)
+    assert result["grades"] == api.get_grades.return_value
+    assert result["data_ok"]["grades"]
+    assert not result["data_ok"]["timetable"]
+    assert not result["data_ok"]["registrations"]
+    assert not w.auth_failed
+    api.get_timetable.assert_called_once()
+    api.get_my_timetable.assert_called_once()

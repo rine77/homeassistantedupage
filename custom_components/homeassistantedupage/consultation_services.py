@@ -7,7 +7,7 @@ from datetime import datetime
 import voluptuous as vol
 from edupage_api.exceptions import ConsultationError, ExpiredSessionException
 from homeassistant.core import SupportsResponse
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError, ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_CONSULTATIONS_MY_TEACHERS, CONF_STUDENT_ID, DOMAIN
@@ -89,7 +89,7 @@ async def perform_action(
             except (Exception, asyncio.CancelledError):
                 pass
         raise
-    except ExpiredSessionException as exc:
+    except (ExpiredSessionException, ConfigEntryAuthFailed) as exc:
         entry.async_start_reauth(hass)
         raise _error("session_expired") from exc
     except ConsultationError as exc:

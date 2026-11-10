@@ -259,3 +259,85 @@ async def test_outer_exception_logging_cannot_restore_unredacted_grade_chain(cap
     assert "RuntimeError" in caplog.text and "ValueError" in caplog.text
     assert "origin=" in caplog.text and "Traceback" in caplog.text
     assert "direct cause" not in caplog.text
+
+
+async def test_parent_restore_failure_keeps_read_and_quarantines_session(caplog):
+    from types import SimpleNamespace
+    from edupage_api.exceptions import UnknownServerError
+
+    api = MagicMock()
+    api.get_grades.return_value = ["verified grade"]
+    api.grade_read_report = {"received": 1, "parsed": 1, "skipped": 0}
+    api.switch_to_parent.side_effect = UnknownServerError()
+    wrapper = _wrapper(api)
+    assert await wrapper.get_grades(SimpleNamespace(person_id=99)) == ["verified grade"]
+    assert wrapper.grade_reports["grades"]["parsed"] == 1
+    assert wrapper.context_invalid
+    with pytest.raises(UpdateFailed):
+        await wrapper.get_subjects()
+    api.get_subjects.assert_not_called()
+    with pytest.raises(UpdateFailed):
+        await wrapper.consultation_action(SimpleNamespace(person_id=100), "book_consultation_slot", dry_run=False)
+    api.book_consultation_slot.assert_not_called()
+    assert "UnknownServerError" in caplog.text
+
+
+async def test_cleanup_failure_does_not_replace_primary_grade_error():
+    from types import SimpleNamespace
+    from edupage_api.exceptions import UnknownServerError
+
+    api = MagicMock()
+    api.get_grades.side_effect = ValueError("primary parse failure")
+    api.switch_to_parent.side_effect = UnknownServerError()
+    wrapper = _wrapper(api)
+    with pytest.raises(UpdateFailed):
+        await wrapper.get_grades(SimpleNamespace(person_id=99))
+    assert "primary parse failure" in wrapper.grade_errors["get_grades"]["cause"]
+    assert wrapper.context_invalid
+
+
+async def test_context_recovery_uses_reloaded_identity_before_other_child():
+    from types import SimpleNamespace
+    from edupage_api.exceptions import UnknownServerError
+
+    api = MagicMock()
+    api.get_grades.return_value = ["child 1"]
+    api.switch_to_parent.side_effect = [UnknownServerError(), None, None]
+    wrapper = _wrapper(api)
+    assert await wrapper.get_grades(SimpleNamespace(person_id=1)) == ["child 1"]
+    with patch("custom_components.homeassistantedupage.homeassistant_edupage.LoginSession") as login:
+        await wrapper.login("canonical-parent", "school", "new-session")
+        login.return_value.reload_data.assert_called_once_with("school", "new-session", "canonical-parent")
+    assert not wrapper.context_invalid
+    api.get_grades.return_value = ["child 2"]
+    assert await wrapper.get_grades(SimpleNamespace(person_id=2)) == ["child 2"]
+    assert [call.args[0].person_id for call in api.switch_to_child.call_args_list] == [1, 2]
+
+
+async def test_context_recovery_failure_requires_reauthentication():
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from edupage_api.exceptions import UnknownServerError
+
+    api = MagicMock()
+    api.switch_to_parent.side_effect = UnknownServerError()
+    wrapper = _wrapper(api)
+    wrapper.context_invalid = True
+    with patch("custom_components.homeassistantedupage.homeassistant_edupage.LoginSession"):
+        with pytest.raises(ConfigEntryAuthFailed):
+            await wrapper.login("parent", "school", "session")
+    assert wrapper.auth_failed
+    api.get_grades.assert_not_called()
+
+
+async def test_mid_read_expiry_is_auth_failure_and_stops_next_network_call():
+    from edupage_api.exceptions import ExpiredSessionException
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+
+    api = MagicMock()
+    api.get_subjects.side_effect = ExpiredSessionException()
+    wrapper = _wrapper(api)
+    with pytest.raises(ConfigEntryAuthFailed):
+        await wrapper.get_subjects()
+    with pytest.raises(ConfigEntryAuthFailed):
+        await wrapper.get_students()
+    api.get_students.assert_not_called()

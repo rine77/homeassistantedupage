@@ -1,14 +1,19 @@
 import logging
+from requests.exceptions import RequestException
+from contextlib import contextmanager
 
 from edupage_api import Edupage as APIEdupage
 from edupage_api import LoginSession
 from edupage_api.exceptions import (
     BadCredentialsException,
     ConsultationError,
+    ExpiredSessionException,
+    NotLoggedInException,
     InsufficientPermissionsException,
     NotParentException,
 )
 
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from .session_tasks import finish_before_cancel
@@ -16,13 +21,8 @@ from .session_tasks import finish_before_cancel
 _LOGGER = logging.getLogger(__name__)
 
 
-class EdupageSessionExpired(UpdateFailed):
-    """Raised when the stored PHPSESSID is invalid/expired.
-
-    Subclass of UpdateFailed so the DataUpdateCoordinator still treats it as a
-    failed update, but it can be caught separately in __init__ to trigger
-    Home Assistant's reauthentication flow.
-    """
+class EdupageSessionExpired(ConfigEntryAuthFailed):
+    """Stored session needs Home Assistant reauthentication."""
 
 
 class Edupage:
@@ -40,17 +40,37 @@ class Edupage:
         self.hass = hass
         self.sessionid = sessionid
         self.api = APIEdupage()
+        self.auth_failed = False
+        self.context_invalid = False
 
     async def _async_executor(self, function, *args):
         """Do not leave a shared-session operation running after cancellation."""
-        return await finish_before_cancel(
-            self.hass.async_add_executor_job(function, *args)
-        )
+        if self.auth_failed:
+            raise EdupageSessionExpired("EduPage session needs reauthentication")
+        if self.context_invalid and function not in (self._load_session, self._log_grade_failure):
+            raise UpdateFailed("EduPage account context needs recovery before further requests")
+        try:
+            return await finish_before_cancel(
+                self.hass.async_add_executor_job(function, *args)
+            )
+        except (ExpiredSessionException, NotLoggedInException, BadCredentialsException):
+            self.auth_failed = True
+            raise EdupageSessionExpired("EduPage session needs reauthentication") from None
 
     def _load_session(self, subdomain, sessionid, username):
         """Reload a stored EduPage session synchronously."""
         login = LoginSession(self.api)
         login.reload_data(subdomain, sessionid, username)
+        if getattr(self, "context_invalid", False):
+            # A new /user response and server-issued account row are available.
+            try:
+                self.api.switch_to_parent()
+            except RequestException:
+                raise UpdateFailed("EduPage context recovery is temporarily unavailable") from None
+            except Exception:
+                self.auth_failed = True
+                raise EdupageSessionExpired("EduPage account context needs reauthentication") from None
+            self.context_invalid = False
 
     async def login(self, username, subdomain, sessionid):
         """Load the stored session. Never starts username/password login."""
@@ -60,6 +80,7 @@ class Edupage:
                 self._load_session, subdomain, sessionid, username
             )
             if not self.api.is_logged_in:
+                self.auth_failed = True
                 _LOGGER.error(
                     "EDUPAGE stored session is invalid or expired; "
                     "re-authenticate to refresh it."
@@ -70,11 +91,13 @@ class Edupage:
             _LOGGER.debug("EDUPAGE session loaded for %s@%s", username, subdomain)
             return True
         except EdupageSessionExpired:
+            self.auth_failed = True
             # Our own expiration signal must pass through untouched so the
             # integration can start the reauthentication flow. Do not let the
             # broad handler below convert it into a generic UpdateFailed.
             raise
         except BadCredentialsException as e:
+            self.auth_failed = True
             _LOGGER.error(
                 "EDUPAGE stored session is invalid or expired: %s. "
                 "Re-authenticate to refresh the session.",
@@ -85,6 +108,7 @@ class Edupage:
                 "integration to refresh it."
             ) from e
         except IndexError as e:
+            self.auth_failed = True
             # LoginSession.reload_data() raises IndexError on a real
             # installation when the stored session is expired
             # (homeassistantedupage#70). Treat it
@@ -98,6 +122,8 @@ class Edupage:
                 "EduPage session invalid/expired; please re-authenticate the "
                 "integration to refresh it."
             ) from e
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("EDUPAGE unexpected session-load error: %s", e)
             raise UpdateFailed(f"EduPage session load failed: {e}") from e
@@ -105,11 +131,14 @@ class Edupage:
     async def get_classes(self):
         try:
             return await self._async_executor(self.api.get_classes)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error updating get_classes() data from API: {e}")
 
-    def _grade_read(self, student, method, *args):
-        """Grade endpoints implicitly use the server's selected child."""
+    @contextmanager
+    def _child_context(self, student):
+        """Select only a verified child; quarantine failed cleanup until recovery."""
         switched = False
         try:
             if student is not None:
@@ -118,6 +147,21 @@ class Edupage:
                     switched = True
                 except NotParentException:
                     pass
+            yield
+        finally:
+            if switched:
+                try:
+                    self.api.switch_to_parent()
+                except Exception as exc:
+                    self.context_invalid = True
+                    # Do not replace a successful result or the primary exception.
+                    # No more API reads/writes are allowed until login recovers it.
+                    _LOGGER.warning("EduPage parent context restoration failed (%s); "
+                                    "further requests blocked until recovery", type(exc).__name__)
+
+    def _grade_read(self, student, method, *args):
+        """Grade endpoints implicitly use the server's selected child."""
+        with self._child_context(student):
             result = getattr(self.api, method)(*args)
             report = getattr(self.api, "grade_read_report", None)
             if isinstance(report, dict):
@@ -126,9 +170,6 @@ class Edupage:
                 key = "grades" if method == "get_grades" else f"term_{args[1].value}"
                 self.grade_reports[key] = dict(report)
             return result
-        finally:
-            if switched:
-                self.api.switch_to_parent()
 
     def _log_grade_failure(self, operation, student, error):
         """Record the concrete cause without cookies, login identity or payloads."""
@@ -174,19 +215,15 @@ class Edupage:
             result = await self._async_executor(self._grade_read, student, "get_grades")
             getattr(self, "grade_errors", {}).pop("get_grades", None)
             return result
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as exc:
             await self._async_executor(self._log_grade_failure, "get_grades", student, exc)
             raise UpdateFailed("EduPage get_grades failed; see the detailed grade diagnostic") from None
 
     def _read_participation(self, student, method, timezone_name, params=None):
         """Keep each read in the selected child's context, restoring the parent."""
-        switched = False
-        try:
-            try:
-                self.api.switch_to_child(student)
-                switched = True
-            except NotParentException:
-                pass
+        with self._child_context(student):
             if method in ("book_consultation_slot", "cancel_consultation"):
                 params = dict(params or {})
                 require_related = params.pop("require_related_teacher", False)
@@ -239,9 +276,6 @@ class Edupage:
                 slots.extend(self.api.get_consultation_slots(block.consultation_id, timezone_name))
                 loaded.append(block.consultation_id)
             return {"overview": overview, "slots": slots, "slots_loaded": loaded}
-        finally:
-            if switched:
-                self.api.switch_to_parent()
 
     async def get_registrations(self, student):
         """Read assigned actions/surveys without submitting responses."""
@@ -250,6 +284,8 @@ class Edupage:
             return await self._async_executor(
                 self._read_participation, student, "registrations", timezone_name
             )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as exc:
             raise UpdateFailed("EduPage registrations could not be read") from exc
 
@@ -260,6 +296,8 @@ class Edupage:
             return await self._async_executor(
                 self._read_participation, student, "consultations", timezone_name
             )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as exc:
             raise UpdateFailed("EduPage consultations could not be read") from exc
 
@@ -271,25 +309,23 @@ class Edupage:
 
     def _get_text_grades(self, student):
         """Read in the selected child's context and restore the parent."""
-        try:
-            self.api.switch_to_child(student)
-        except NotParentException:
+        with self._child_context(student):
             return self.api.get_text_grades()
-        try:
-            return self.api.get_text_grades()
-        finally:
-            self.api.switch_to_parent()
 
     async def get_text_grades(self, student):
         """Fetch textual assessments through the official API."""
         try:
             return await self._async_executor(self._get_text_grades, student)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed("EDUPAGE error updating text assessments") from e
 
     async def get_subjects(self):
         try:
             return await self._async_executor(self.api.get_subjects)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error updating get_subjects() data from API: {e}")
 
@@ -300,6 +336,8 @@ class Edupage:
             )
             _LOGGER.debug("EDUPAGE Notifications found %s", notifications)
             return notifications
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_notifications() data from API: {e}"
@@ -308,6 +346,8 @@ class Edupage:
     async def get_students(self):
         try:
             return await self._async_executor(self.api.get_students)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_students() data from API: {e}"
@@ -316,6 +356,8 @@ class Edupage:
     async def get_user_id(self):
         try:
             return await self._async_executor(self.api.get_user_id)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_user_id() data from API: {e}"
@@ -324,6 +366,8 @@ class Edupage:
     async def get_classrooms(self):
         try:
             return await self._async_executor(self.api.get_classrooms)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_classrooms data from API: {e}"
@@ -332,6 +376,8 @@ class Edupage:
     async def get_teachers(self):
         try:
             return await self._async_executor(self.api.get_teachers)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_teachers data from API: {e}"
@@ -347,11 +393,8 @@ class Edupage:
                 "retrying in the selected child context",
                 day,
             )
-            self.api.switch_to_child(edu_student)
-            try:
+            with self._child_context(edu_student):
                 return self.api.get_my_timetable(day)
-            finally:
-                self.api.switch_to_parent()
 
     async def get_timetable(self, edu_student, day):
         try:
@@ -363,6 +406,8 @@ class Edupage:
             else:
                 _LOGGER.debug("EDUPAGE timetable_data for %s: %s", day, timetable)
             return timetable
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             _LOGGER.error(
                 "EDUPAGE error updating get_timetable() data for %s: %s", day, e
@@ -383,6 +428,8 @@ class Edupage:
                 e,
             )
             return None
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_meals() data for {day}: {e}"
@@ -393,6 +440,8 @@ class Edupage:
             return await self._async_executor(
                 self.api.get_timetable_changes, day
             )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_timetable_changes() data for {day}: {e}"
@@ -410,6 +459,8 @@ class Edupage:
                 day,
             )
             return []
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_missing_teachers() data for {day}: {e}"
@@ -420,6 +471,8 @@ class Edupage:
             return await self._async_executor(
                 self.api.get_next_ringing_time, day_time
             )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_next_ringing_time() data from API: {e}"
@@ -429,6 +482,8 @@ class Edupage:
         """Returns the current school year."""
         try:
             return await self._async_executor(self.api.get_school_year)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(
                 f"EDUPAGE error updating get_school_year() data from API: {e}"
@@ -441,6 +496,8 @@ class Edupage:
                 self._grade_read, student, "get_grades_for_term", year, term)
             getattr(self, "grade_errors", {}).pop(operation, None)
             return result
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as exc:
             await self._async_executor(self._log_grade_failure, operation, student, exc)
             raise UpdateFailed("EduPage get_grades_for_term failed; see the detailed grade diagnostic") from None
@@ -452,12 +509,16 @@ class Edupage:
     async def choose_meal(self, meal, number: int):
         try:
             await self._async_executor(meal.choose, self.api, number)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error choosing meal: {e}")
 
     async def sign_off_meal(self, meal):
         try:
             await self._async_executor(meal.sign_off, self.api)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error signing off meal: {e}")
 
@@ -466,6 +527,8 @@ class Edupage:
             await self._async_executor(
                 rating.rate, self.api, quantity, quality
             )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error rating meal: {e}")
 
@@ -527,6 +590,8 @@ class Edupage:
                 self.api.send_message, recipient_ids, body
             )
         except UpdateFailed:
+            raise
+        except ConfigEntryAuthFailed:
             raise
         except Exception as e:  # noqa: BLE001
             raise UpdateFailed(f"EDUPAGE error sending message: {e}")

@@ -3,6 +3,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.const import CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.start import async_at_started
@@ -89,12 +90,16 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
                         if value
                     )
                 )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             _LOGGER.warning("get_classes failed: %s", e, exc_info=True)
 
     try:
         grades = await edupage.get_grades(student)
         data_ok["grades"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_grades failed: %s", e, exc_info=True)
         grades = []
@@ -103,6 +108,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
     try:
         text_grades = await edupage.get_text_grades(student)
         data_ok["text_grades"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         # This optional source must not prevent other data from refreshing.
         _LOGGER.debug("get_text_grades failed (%s)", type(e).__name__)
@@ -112,6 +119,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
     try:
         subjects = await edupage.get_subjects()
         data_ok["subjects"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_subjects failed: %s", e, exc_info=True)
         subjects = []
@@ -125,6 +134,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
     try:
         notifications = await edupage.get_notifications()
         data_ok["notifications"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_notifications failed: %s", e, exc_info=True)
         notifications = []
@@ -141,6 +152,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
             timetable = await edupage.get_timetable(
                 student, current_date
             )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             _LOGGER.error(
                 "Failed to fetch timetable data for %s: %s",
@@ -170,6 +183,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
         current_date = today + timedelta(days=offset)
         try:
             meals = await edupage.get_meals(current_date)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to fetch meals data for %s: %s",
@@ -192,6 +207,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
     try:
         timetable_changes = await edupage.get_timetable_changes(today)
         data_ok["timetable_changes"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning(
             "get_timetable_changes failed for %s: %s", today, e, exc_info=True
@@ -202,6 +219,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
     try:
         missing_teachers = await edupage.get_missing_teachers(today)
         data_ok["missing_teachers"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning(
             "get_missing_teachers failed for %s: %s", today, e, exc_info=True
@@ -214,6 +233,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
             datetime.now()
         )
         data_ok["next_ringing"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_next_ringing_time failed: %s", e, exc_info=True)
         next_ringing = None
@@ -235,6 +256,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
                 ] = await edupage.get_grades_for_term(
                     school_year, term_enum, student
                 )
+            except ConfigEntryAuthFailed:
+                raise
             except Exception as e:  # noqa: BLE001
                 _LOGGER.warning(
                     "get_grades_for_term(%s) failed: %s", term_key, e, exc_info=True
@@ -242,6 +265,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
                 grades_per_term[term_key] = []
                 all_terms_ok = False
         data_ok["grades_per_term"] = all_terms_ok
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_school_year failed: %s", e, exc_info=True)
         school_year = None
@@ -256,6 +281,8 @@ async def _collect_data(edupage, student, student_name, *, include_consultations
         try:
             participation[section] = await getattr(edupage, "get_" + section)(student)
             data_ok[section] = True
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as exc:  # Optional sources must not break timetable/grades.
             _LOGGER.warning("%s failed (%s)", section, type(exc).__name__, exc_info=True)
             participation[section] = None
@@ -308,6 +335,10 @@ async def _load_startup_consultations(coordinator, student):
             except Exception:
                 _LOGGER.warning("Cancelled consultation read failed", exc_info=True)
             raise
+        except ConfigEntryAuthFailed as exc:
+            coordinator.async_set_update_error(exc)
+            coordinator.config_entry.async_start_reauth(coordinator.hass)
+            return
         except Exception:
             _LOGGER.warning("Background consultations failed", exc_info=True)
             return
@@ -368,26 +399,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     edupage = Edupage(hass=hass, sessionid=phpsessid)
     coordinator = None
 
-    try:
-        # Session-only: loads the stored PHPSESSID, never prompts for 2FA again.
-        await edupage.login(username, subdomain, phpsessid)
-        _LOGGER.debug("INIT login_success (session reloaded)")
-    except EdupageSessionExpired as e:
-        _LOGGER.error("INIT stored session invalid/expired: %s", e)
-        entry.async_start_reauth(
-            hass, context={"title_placeholders": {"name": entry.title}}
-        )
-        return False
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.error("INIT session load failed: %s", e)
-        return False
-
     # Separate entries can share the same server session. Serialize context
     # switches across those entries as well as between polling and actions.
     import hashlib
     lock_key = hashlib.sha256(f"{subdomain}:{phpsessid}".encode()).hexdigest()
     session_locks = hass.data.setdefault(f"{DOMAIN}_session_locks", {})
     fetch_lock = session_locks.setdefault(lock_key, asyncio.Lock())
+
+
+    try:
+        # Session-only: loads the stored PHPSESSID, never prompts for 2FA again.
+        async with fetch_lock:
+            await edupage.login(username, subdomain, phpsessid)
+        _LOGGER.debug("INIT login_success (session reloaded)")
+    except ConfigEntryAuthFailed:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise ConfigEntryNotReady("EduPage session could not be loaded") from None
+
 
     first_fetch = True
     startup_student = None
@@ -399,6 +428,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         async with fetch_lock:
             try:
+                if edupage.auth_failed:
+                    raise EdupageSessionExpired("EduPage session needs reauthentication")
                 await edupage.login(username, subdomain, phpsessid)
 
                 students = await edupage.get_students()
@@ -417,16 +448,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 data = await _collect_data(edupage, student, student_name,
                                            include_consultations=not first_fetch)
+                if edupage.context_invalid:
+                    # Keep the successfully verified partial read and offer recovery.
+                    entry.async_start_reauth(hass)
                 startup_student = student
                 first_fetch = False
                 return data
 
-            except EdupageSessionExpired as e:
-                _LOGGER.error("INIT session expired during update: %s", e)
-                entry.async_start_reauth(
-                    hass, context={"title_placeholders": {"name": entry.title}}
-                )
-                raise UpdateFailed("EduPage session expired") from e
+            except ConfigEntryAuthFailed:
+                edupage.auth_failed = True
+                raise
             except Exception as e:
                 _LOGGER.error("INIT Failed: %s", e)
                 if isinstance(e, UpdateFailed):
@@ -448,6 +479,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN][entry.entry_id] = coordinator
         await coordinator.async_config_entry_first_refresh()
         _LOGGER.debug("INIT Coordinator successfully initialized")
+    except (ConfigEntryAuthFailed, ConfigEntryNotReady):
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.error("INIT Error during async_setup_entry: %s", e)
         if entry.entry_id in hass.data[DOMAIN]:
@@ -479,7 +513,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _load_startup_consultations(coordinator, startup_student),
                 f"EduPage consultations {entry.entry_id}",
             )
-            entry.async_on_unload(task.cancel)
+            coordinator._startup_consultations_task = task
+
+            @callback
+            def cancel_consultations():
+                task.cancel()
+
+            entry.async_on_unload(cancel_consultations)
 
         entry.async_on_unload(async_at_started(hass, load_consultations_after_start))
 
@@ -672,6 +712,16 @@ async def _setup_services(hass: HomeAssistant):
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload ConfigEntry."""
     _LOGGER.debug("INIT called async_unload_entry")
+
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    pending = getattr(coordinator, "_startup_consultations_task", None)
+    if pending is not None:
+        pending.cancel()
+        try:
+            # Session workers finish restoration before this task terminates.
+            await pending
+        except asyncio.CancelledError:
+            pass
 
     unload_results = await asyncio.gather(
         *(

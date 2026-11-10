@@ -100,3 +100,35 @@ async def test_each_expired_child_gets_one_real_reauth_flow(hass, lifecycle_entr
             await coordinator.async_request_refresh()
             await coordinator.async_shutdown()
         assert login.await_count == 6
+
+
+async def test_valid_session_with_broken_parent_switch_never_opens_reauth(hass, lifecycle_entry):
+    from edupage_api.exceptions import UnknownServerError
+    from custom_components.homeassistantedupage.homeassistant_edupage import APIEdupage
+
+    def session_factory(api):
+        return SimpleNamespace(reload_data=lambda *args: setattr(api, "is_logged_in", True))
+
+    async def partial_read(wrapper, *args, **kwargs):
+        wrapper.context_invalid = True
+        return _snapshot()
+
+    with patch("custom_components.homeassistantedupage.homeassistant_edupage.LoginSession", side_effect=session_factory), patch.object(
+        APIEdupage, "switch_to_parent", side_effect=UnknownServerError(),
+    ), patch.object(Edupage, "get_students", AsyncMock(return_value=[SimpleNamespace(person_id=1, name="Student")])), patch.object(
+        Edupage, "get_consultations", AsyncMock(return_value={"overview": ConsultationOverview([], []), "slots": [], "slots_loaded": []}), create=True,
+    ), patch("custom_components.homeassistantedupage._collect_data", side_effect=partial_read), patch.object(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock(),
+    ):
+        assert await hass.config_entries.async_setup(lifecycle_entry.entry_id)
+        coordinator = hass.data[DOMAIN][lifecycle_entry.entry_id]
+        retained = coordinator.data
+        for _ in range(2):
+            await coordinator.async_request_refresh()
+            await hass.async_block_till_done()
+            assert not coordinator.edupage.auth_failed
+            assert coordinator.edupage.context_invalid
+            assert not any(f["handler"] == DOMAIN for f in hass.config_entries.flow.async_progress())
+        assert coordinator.data["student"] == retained["student"]
+        await coordinator.async_shutdown()
+

@@ -378,8 +378,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 student_name = student.name or stored_student_name or str(student.person_id)
 
                 data = await _collect_data(edupage, student, student_name)
-                if edupage.context_invalid:
-                    entry.async_start_reauth(hass)
                 return data
 
             except ConfigEntryAuthFailed:

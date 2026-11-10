@@ -1,6 +1,7 @@
 import logging
 from requests.exceptions import RequestException
 from contextlib import contextmanager
+from urllib.parse import urlsplit
 
 from edupage_api import Edupage as APIEdupage
 from edupage_api import LoginSession
@@ -8,6 +9,7 @@ from edupage_api.exceptions import (
     BadCredentialsException,
     ExpiredSessionException,
     NotLoggedInException,
+    MissingDataException,
     InsufficientPermissionsException,
     NotParentException,
 )
@@ -52,9 +54,47 @@ class Edupage:
             return await finish_before_cancel(
                 self.hass.async_add_executor_job(function, *args)
             )
-        except (ExpiredSessionException, NotLoggedInException, BadCredentialsException):
+        except (ExpiredSessionException, NotLoggedInException, BadCredentialsException) as exc:
+            operation = getattr(function, "__name__", "unknown")
+            if operation in ("_read_participation", "_grade_read") and len(args) > 1:
+                operation = str(args[1])
+            if function != self._load_session:
+                try:
+                    state = await finish_before_cancel(
+                        self.hass.async_add_executor_job(self._verify_account_session)
+                    )
+                except Exception:
+                    state = None
+                if state is not False:
+                    status = "valid" if state is True else "unconfirmed"
+                    raise UpdateFailed(
+                        f"EduPage {operation} signalled {type(exc).__name__}; "
+                        f"main account session is {status}, reauthentication not requested"
+                    ) from None
             self.auth_failed = True
-            raise EdupageSessionExpired("EduPage session needs reauthentication") from None
+            raise EdupageSessionExpired(
+                f"EduPage session needs reauthentication ({operation}: {type(exc).__name__})"
+            ) from None
+
+    def _verify_account_session(self):
+        """Read /user with current cookies; never mutate the cached child context.
+
+        True: authenticated bootstrap; False: explicit login redirect/HTTP 401;
+        None: network/module/schema ambiguity. No response payload is logged.
+        """
+        response = self.api.session.get(f"https://{self.api.subdomain}.edupage.org/user/")
+        path = urlsplit(response.url).path.rstrip("/")
+        if response.status_code == 401 or path in ("/login", "/login/index.php") or "EdupageLoginFailed" in response.url:
+            return False
+        if response.status_code != 200:
+            return None
+        probe = APIEdupage()
+        probe.session.close()
+        try:
+            LoginSession(probe).parse_login_data(response.text)
+        except Exception:
+            return None
+        return isinstance(probe.data, dict) and bool(probe.data.get("userid")) or None
 
     def _load_session(self, subdomain, sessionid, username):
         """Reload a stored EduPage session synchronously."""
@@ -66,9 +106,17 @@ class Edupage:
                 self.api.switch_to_parent()
             except RequestException:
                 raise UpdateFailed("EduPage context recovery is temporarily unavailable") from None
-            except Exception:
-                self.auth_failed = True
-                raise EdupageSessionExpired("EduPage account context needs reauthentication") from None
+            except ConfigEntryAuthFailed:
+                raise
+            except (ExpiredSessionException, NotLoggedInException, BadCredentialsException):
+                raise
+            except Exception as exc:
+                # /user authenticated successfully. A failed account switch is
+                # a context/protocol failure, not evidence that credentials expired.
+                raise UpdateFailed(
+                    f"EduPage parent context recovery failed ({type(exc).__name__}); "
+                    "session reload succeeded"
+                ) from None
             self.context_invalid = False
 
     async def logout(self):
@@ -199,7 +247,9 @@ class Edupage:
                 if isinstance(secret, str) and secret:
                     message = message.replace(secret, "[redacted]")
             chain.append(f"{type(root).__name__}: {message[:512]}")
-            next_error = root.__cause__ or root.__context__
+            next_error = root.__cause__
+            if next_error is None and not root.__suppress_context__:
+                next_error = root.__context__
             if next_error is None:
                 break
             root = next_error
@@ -314,10 +364,10 @@ class Edupage:
         """Get a timetable, falling back to the parent child-switch flow."""
         try:
             return self.api.get_timetable(edu_student, day)
-        except InsufficientPermissionsException:
+        except (InsufficientPermissionsException, MissingDataException):
             _LOGGER.debug(
-                "EDUPAGE direct timetable access was rejected for %s; "
-                "retrying in the selected child context",
+                "EDUPAGE direct timetable data unavailable for %s; "
+                "reading the verified child context once",
                 day,
             )
             with self._child_context(edu_student):

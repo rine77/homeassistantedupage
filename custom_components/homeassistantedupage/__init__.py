@@ -29,7 +29,7 @@ from .const import (
     CONF_STUDENT_NAME,
 )
 
-_LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
+_LOGGER = logging.getLogger(__name__)
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the integration (config-entry only)."""
@@ -397,6 +397,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     student_id = entry.data[CONF_STUDENT_ID]
     stored_student_name = entry.data.get(CONF_STUDENT_NAME)
     edupage = Edupage(hass=hass, sessionid=phpsessid)
+    edupage.entry_id = entry.entry_id
+    edupage.student_id = student_id
+    edupage.api._diagnostic_entry_id = entry.entry_id
+    edupage.api._diagnostic_student_id = student_id
     coordinator = None
 
     # Separate entries can share the same server session. Serialize context
@@ -456,7 +460,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 edupage.auth_failed = True
                 raise
             except Exception as e:
-                _LOGGER.error("INIT Failed: %s", e)
+                _LOGGER.error("INIT Failed entry_id=%s student_id=%s: %s", entry.entry_id, student_id, e)
                 if isinstance(e, UpdateFailed):
                     raise
                 raise UpdateFailed("EduPage update failed") from e

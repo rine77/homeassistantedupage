@@ -19,6 +19,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from .session_tasks import finish_before_cancel
+from .diagnostic_logging import log_exception
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ class Edupage:
         self.api = APIEdupage()
         self.auth_failed = False
         self.context_invalid = False
+        self.entry_id = None
+        self.student_id = None
 
     async def _async_executor(self, function, *args):
         """Do not leave a shared-session operation running after cancellation."""
@@ -99,19 +102,32 @@ class Edupage:
 
     def _load_session(self, subdomain, sessionid, username):
         """Reload a stored EduPage session synchronously."""
+        _LOGGER.debug(
+            "Session reload start entry_id=%s student_id=%s context_invalid=%s",
+            getattr(self, "entry_id", None), getattr(self, "student_id", None), getattr(self, "context_invalid", False),
+        )
         login = LoginSession(self.api)
         login.reload_data(subdomain, sessionid, username)
+        _LOGGER.debug(
+            "Session reload succeeded entry_id=%s student_id=%s context_invalid=%s gsec_hash_present=%s",
+            getattr(self, "entry_id", None), getattr(self, "student_id", None), getattr(self, "context_invalid", False),
+            bool(getattr(self.api, "gsec_hash", None)),
+        )
         if getattr(self, "context_invalid", False):
             # A new /user response and server-issued account row are available.
             try:
                 self.api.switch_to_parent()
-            except RequestException:
+            except RequestException as exc:
+                log_exception(_LOGGER, "parent_context_recovery", exc,
+                              entry_id=getattr(self, "entry_id", None), student_id=getattr(self, "student_id", None))
                 raise UpdateFailed("EduPage context recovery is temporarily unavailable") from None
             except ConfigEntryAuthFailed:
                 raise
             except (ExpiredSessionException, NotLoggedInException, BadCredentialsException):
                 raise
             except Exception as exc:
+                log_exception(_LOGGER, "parent_context_recovery", exc,
+                              entry_id=getattr(self, "entry_id", None), student_id=getattr(self, "student_id", None))
                 # /user authenticated successfully. A failed account switch is
                 # a context/protocol failure, not evidence that credentials expired.
                 raise UpdateFailed(
@@ -133,6 +149,8 @@ class Edupage:
     async def login(self, username, subdomain, sessionid):
         """Load the stored session. Never starts username/password login."""
         self.sessionid = sessionid
+        _LOGGER.debug("Session load begin entry_id=%s student_id=%s context_invalid=%s auth_failed=%s",
+                      getattr(self, "entry_id", None), getattr(self, "student_id", None), self.context_invalid, self.auth_failed)
         try:
             await self._async_executor(
                 self._load_session, subdomain, sessionid, username
@@ -146,7 +164,7 @@ class Edupage:
                 raise EdupageSessionExpired(
                     "EduPage session expired; please re-authenticate."
                 )
-            _LOGGER.debug("EDUPAGE session loaded for %s@%s", username, subdomain)
+            _LOGGER.debug("Session load completed entry_id=%s student_id=%s", getattr(self, "entry_id", None), getattr(self, "student_id", None))
             return True
         except EdupageSessionExpired:
             self.auth_failed = True
@@ -183,7 +201,8 @@ class Edupage:
         except ConfigEntryAuthFailed:
             raise
         except Exception as e:  # noqa: BLE001
-            _LOGGER.error("EDUPAGE unexpected session-load error: %s", e)
+            log_exception(_LOGGER, "session_load", e,
+                          entry_id=getattr(self, "entry_id", None), student_id=getattr(self, "student_id", None))
             raise UpdateFailed(f"EduPage session load failed: {e}") from e
 
     async def get_classes(self):
@@ -214,8 +233,9 @@ class Edupage:
                     self.context_invalid = True
                     # Do not replace a successful result or the primary exception.
                     # No more API reads/writes are allowed until login recovers it.
-                    _LOGGER.warning("EduPage parent context restoration failed (%s); "
-                                    "further requests blocked until recovery", type(exc).__name__)
+                    log_exception(_LOGGER, "parent_context_restoration", exc,
+                                  entry_id=getattr(self, "entry_id", None), student_id=getattr(self, "student_id", None))
+
 
     def _grade_read(self, student, method, *args):
         """Grade endpoints implicitly use the server's selected child."""
@@ -394,7 +414,7 @@ class Edupage:
             notifications = await self._async_executor(
                 self.api.get_notifications
             )
-            _LOGGER.debug("EDUPAGE Notifications found %s", notifications)
+            _LOGGER.debug("Notifications fetched entry_id=%s student_id=%s", getattr(self, "entry_id", None), getattr(self, "student_id", None))
             return notifications
         except ConfigEntryAuthFailed:
             raise
@@ -464,7 +484,7 @@ class Edupage:
             if timetable is None:
                 _LOGGER.debug("EDUPAGE timetable is None for %s", day)
             else:
-                _LOGGER.debug("EDUPAGE timetable_data for %s: %s", day, timetable)
+                _LOGGER.debug("Timetable fetched day=%s entry_id=%s student_id=%s", day, getattr(self, "entry_id", None), getattr(self, "student_id", None))
             return timetable
         except ConfigEntryAuthFailed:
             raise

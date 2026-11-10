@@ -67,9 +67,17 @@ class Edupage:
                 self.api.switch_to_parent()
             except RequestException:
                 raise UpdateFailed("EduPage context recovery is temporarily unavailable") from None
-            except Exception:
-                self.auth_failed = True
-                raise EdupageSessionExpired("EduPage account context needs reauthentication") from None
+            except ConfigEntryAuthFailed:
+                raise
+            except (ExpiredSessionException, NotLoggedInException, BadCredentialsException):
+                raise
+            except Exception as exc:
+                # /user authenticated successfully. A failed account switch is
+                # a context/protocol failure, not evidence that credentials expired.
+                raise UpdateFailed(
+                    f"EduPage parent context recovery failed ({type(exc).__name__}); "
+                    "session reload succeeded"
+                ) from None
             self.context_invalid = False
 
     async def logout(self):

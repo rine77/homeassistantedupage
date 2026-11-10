@@ -448,9 +448,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 data = await _collect_data(edupage, student, student_name,
                                            include_consultations=not first_fetch)
-                if edupage.context_invalid:
-                    # Keep the successfully verified partial read and offer recovery.
-                    entry.async_start_reauth(hass)
                 startup_student = student
                 first_fetch = False
                 return data

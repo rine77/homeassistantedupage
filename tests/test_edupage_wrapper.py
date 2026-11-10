@@ -314,7 +314,7 @@ async def test_context_recovery_uses_reloaded_identity_before_other_child():
     assert [call.args[0].person_id for call in api.switch_to_child.call_args_list] == [1, 2]
 
 
-async def test_context_recovery_failure_requires_reauthentication():
+async def test_context_failure_after_successful_login_is_not_auth_failure():
     from homeassistant.exceptions import ConfigEntryAuthFailed
     from edupage_api.exceptions import UnknownServerError
 
@@ -323,9 +323,11 @@ async def test_context_recovery_failure_requires_reauthentication():
     wrapper = _wrapper(api)
     wrapper.context_invalid = True
     with patch("custom_components.homeassistantedupage.homeassistant_edupage.LoginSession"):
-        with pytest.raises(ConfigEntryAuthFailed):
+        with pytest.raises(UpdateFailed, match="session reload succeeded") as caught:
             await wrapper.login("parent", "school", "session")
-    assert wrapper.auth_failed
+    assert not isinstance(caught.value, ConfigEntryAuthFailed)
+    assert not wrapper.auth_failed
+    assert wrapper.context_invalid
     api.get_grades.assert_not_called()
 
 

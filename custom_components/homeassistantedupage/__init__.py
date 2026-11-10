@@ -3,6 +3,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.const import CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import (
@@ -86,12 +87,16 @@ async def _collect_data(edupage, student, student_name):
                         if value
                     )
                 )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             _LOGGER.warning("get_classes failed: %s", e)
 
     try:
         grades = await edupage.get_grades(student)
         data_ok["grades"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_grades failed: %s", e, exc_info=True)
         grades = []
@@ -100,6 +105,8 @@ async def _collect_data(edupage, student, student_name):
     try:
         text_grades = await edupage.get_text_grades(student)
         data_ok["text_grades"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         # This optional source must not prevent other data from refreshing.
         _LOGGER.debug("get_text_grades failed (%s)", type(e).__name__)
@@ -109,6 +116,8 @@ async def _collect_data(edupage, student, student_name):
     try:
         subjects = await edupage.get_subjects()
         data_ok["subjects"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_subjects failed: %s", e)
         subjects = []
@@ -121,6 +130,8 @@ async def _collect_data(edupage, student, student_name):
     try:
         notifications = await edupage.get_notifications()
         data_ok["notifications"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_notifications failed: %s", e)
         notifications = []
@@ -137,6 +148,8 @@ async def _collect_data(edupage, student, student_name):
             timetable = await edupage.get_timetable(
                 student, current_date
             )
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             _LOGGER.error(
                 "Failed to fetch timetable data for %s: %s",
@@ -165,6 +178,8 @@ async def _collect_data(edupage, student, student_name):
         current_date = today + timedelta(days=offset)
         try:
             meals = await edupage.get_meals(current_date)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as e:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to fetch meals data for %s: %s",
@@ -186,6 +201,8 @@ async def _collect_data(edupage, student, student_name):
     try:
         timetable_changes = await edupage.get_timetable_changes(today)
         data_ok["timetable_changes"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning(
             "get_timetable_changes failed for %s: %s", today, e
@@ -196,6 +213,8 @@ async def _collect_data(edupage, student, student_name):
     try:
         missing_teachers = await edupage.get_missing_teachers(today)
         data_ok["missing_teachers"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning(
             "get_missing_teachers failed for %s: %s", today, e
@@ -208,6 +227,8 @@ async def _collect_data(edupage, student, student_name):
             datetime.now()
         )
         data_ok["next_ringing"] = True
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_next_ringing_time failed: %s", e)
         next_ringing = None
@@ -229,6 +250,8 @@ async def _collect_data(edupage, student, student_name):
                 ] = await edupage.get_grades_for_term(
                     school_year, term_enum, student
                 )
+            except ConfigEntryAuthFailed:
+                raise
             except Exception as e:  # noqa: BLE001
                 _LOGGER.warning(
                     "get_grades_for_term(%s) failed: %s", term_key, e, exc_info=True
@@ -236,6 +259,8 @@ async def _collect_data(edupage, student, student_name):
                 grades_per_term[term_key] = []
                 all_terms_ok = False
         data_ok["grades_per_term"] = all_terms_ok
+    except ConfigEntryAuthFailed:
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_school_year failed: %s", e)
         school_year = None
@@ -310,25 +335,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     edupage = Edupage(hass=hass, sessionid=phpsessid)
     coordinator = None
 
-    try:
-        # Session-only: loads the stored PHPSESSID, never prompts for 2FA again.
-        await edupage.login(username, subdomain, phpsessid)
-        _LOGGER.debug("INIT login_success (session reloaded)")
-    except EdupageSessionExpired as e:
-        _LOGGER.error("INIT stored session invalid/expired: %s", e)
-        entry.async_start_reauth(
-            hass, context={"title_placeholders": {"name": entry.title}}
-        )
-        return False
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.error("INIT session load failed: %s", e)
-        return False
-
     # Entries sharing a server session must not select different children together.
     import hashlib
     lock_key = hashlib.sha256(f"{subdomain}:{phpsessid}".encode()).hexdigest()
     session_locks = hass.data.setdefault(f"{DOMAIN}_session_locks", {})
     fetch_lock = session_locks.setdefault(lock_key, asyncio.Lock())
+
+
+    try:
+        # Session-only: loads the stored PHPSESSID, never prompts for 2FA again.
+        async with fetch_lock:
+            await edupage.login(username, subdomain, phpsessid)
+        _LOGGER.debug("INIT login_success (session reloaded)")
+    except ConfigEntryAuthFailed:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise ConfigEntryNotReady("EduPage session could not be loaded") from None
+
 
     async def fetch_data():
         """Fetch timetable, canteen and notification data for the student."""
@@ -336,6 +359,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         async with fetch_lock:
             try:
+                if edupage.auth_failed:
+                    raise EdupageSessionExpired("EduPage session needs reauthentication")
                 await edupage.login(username, subdomain, phpsessid)
 
                 students = await edupage.get_students()
@@ -352,14 +377,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 student_name = student.name or stored_student_name or str(student.person_id)
 
-                return await _collect_data(edupage, student, student_name)
+                data = await _collect_data(edupage, student, student_name)
+                if edupage.context_invalid:
+                    entry.async_start_reauth(hass)
+                return data
 
-            except EdupageSessionExpired as e:
-                _LOGGER.error("INIT session expired during update: %s", e)
-                entry.async_start_reauth(
-                    hass, context={"title_placeholders": {"name": entry.title}}
-                )
-                raise UpdateFailed("EduPage session expired") from e
+            except ConfigEntryAuthFailed:
+                edupage.auth_failed = True
+                raise
             except Exception as e:
                 _LOGGER.error("INIT Failed: %s", e)
                 if isinstance(e, UpdateFailed):
@@ -381,6 +406,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN][entry.entry_id] = coordinator
         await coordinator.async_config_entry_first_refresh()
         _LOGGER.debug("INIT Coordinator successfully initialized")
+    except (ConfigEntryAuthFailed, ConfigEntryNotReady):
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        raise
     except Exception as e:  # noqa: BLE001
         _LOGGER.error("INIT Error during async_setup_entry: %s", e)
         if entry.entry_id in hass.data[DOMAIN]:
@@ -604,3 +632,44 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
 
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Invalidate the EduPage session when the account is deleted.
+
+    The stored PHPSESSID is dead once the entry is gone, so log out on the
+    server rather than leaving it valid until it expires on its own.
+
+    Skipped when another entry still holds the same PHPSESSID - two students on
+    one EduPage account share a session, and invalidating it here would break
+    the sibling entry. Failures are logged and swallowed: the entry is being
+    deleted either way, and an orphaned session is not worth blocking removal
+    for.
+    """
+    phpsessid = entry.data.get(CONF_PHPSESSID)
+    if not phpsessid:
+        return
+
+    siblings = [
+        other
+        for other in hass.config_entries.async_entries(DOMAIN)
+        if other.entry_id != entry.entry_id
+        and other.data.get(CONF_PHPSESSID) == phpsessid
+    ]
+    if siblings:
+        _LOGGER.debug(
+            "INIT keeping the EduPage session; %s other entr%s still uses it",
+            len(siblings),
+            "y" if len(siblings) == 1 else "ies",
+        )
+        return
+
+    edupage = Edupage(hass=hass, sessionid=phpsessid)
+    try:
+        await edupage.login(
+            entry.data[CONF_USERNAME], entry.data[CONF_SUBDOMAIN], phpsessid
+        )
+        await edupage.logout()
+        _LOGGER.debug("INIT EduPage session invalidated on entry removal")
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.debug("INIT could not invalidate the EduPage session: %s", e)

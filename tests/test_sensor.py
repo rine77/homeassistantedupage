@@ -61,6 +61,7 @@ class _FakeGrade:
             percent=None,
             max_points=None,
             class_grade_avg=None,
+            importance=None,
             subject_id=1,
     ):
         self.grade_n = grade_n
@@ -71,6 +72,7 @@ class _FakeGrade:
         self.percent = percent
         self.max_points = max_points
         self.class_grade_avg = class_grade_avg
+        self.importance = importance
         self.subject_id = subject_id
 
 @pytest.fixture
@@ -224,6 +226,49 @@ def test_latest_grade_uses_date_not_api_order(coordinator):
     assert attrs["latest_grade_class_avg_grade"] == 2.4
 
 
+def test_grade_importance_is_exposed_per_grade(coordinator):
+    """edupage-api 0.13.3 always populates importance, so it is worth surfacing."""
+    coordinator.data["grades"] = [
+        _FakeGrade(
+            1,
+            "Weighted test",
+            datetime(2026, 9, 4, 9, 0),
+            importance=0.25,
+        )
+    ]
+
+    sensor = EduPageSubjectSensor(
+        coordinator,
+        student_id=1,
+        student_name="Max Kovaľ",
+        subject_name="Maths",
+        subject_id=1,
+        grades=[],
+    )
+
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["grade_1_importance"] == 0.25
+
+
+def test_grade_importance_omitted_when_absent(coordinator):
+    """Grades without an importance value add no attribute at all."""
+    coordinator.data["grades"] = [
+        _FakeGrade(2, "Plain test", datetime(2026, 9, 5, 9, 0))
+    ]
+
+    sensor = EduPageSubjectSensor(
+        coordinator,
+        student_id=1,
+        student_name="Max Kovaľ",
+        subject_name="Maths",
+        subject_id=1,
+        grades=[],
+    )
+
+    assert "grade_1_importance" not in sensor.extra_state_attributes
+
+
 def test_latest_grade_omits_missing_optional_fields(coordinator):
     """Optional latest-grade attributes are omitted when EduPage has no value."""
     coordinator.data["grades"] = [
@@ -358,3 +403,73 @@ async def test_subject_exposes_skipped_grade_count(hass, coordinator):
     entity = EduPageSubjectSensor(coordinator, 1, "Student", "Inf", 1)
     assert entity.extra_state_attributes["grades_skipped_total"] == 4
     assert entity.extra_state_attributes["grades_complete"] is False
+async def test_behaviour_note_metadata_is_exposed(hass, coordinator):
+    """Notes expose label, type and a text fallback in both formats."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(
+            1,
+            "vcelicka",
+            None,
+            datetime(2026, 11, 9, 13, 7),
+            additional_data={
+                "typ": "disrespecting",
+                "typ_text": "Nerešpektuje pokyny učiteľa",
+                "predmetid": 1,
+            },
+            recipient="Max Kovaľ",
+        )
+    ]
+    attrs = sensor.extra_state_attributes
+    ev = attrs["events"][0]
+    assert ev["type"] == "vcelicka"
+    assert ev["text"] == "Nerešpektuje pokyny učiteľa"
+    assert ev["note_label"] == "Nerešpektuje pokyny učiteľa"
+    assert ev["note_type"] == "disrespecting"
+    assert ev["subject"] == "Maths"
+    assert attrs["event_1_text"] == "Nerešpektuje pokyny učiteľa"
+    assert attrs["event_1_note_label"] == "Nerešpektuje pokyny učiteľa"
+    assert attrs["event_1_note_type"] == "disrespecting"
+
+
+async def test_behaviour_note_keeps_existing_text(hass, coordinator):
+    """A note with its own text keeps it; the label is still exposed."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(
+            1,
+            "vcelicka",
+            "Custom text",
+            datetime(2026, 11, 9),
+            additional_data={"typ": "praise", "typ_text": "Label"},
+        )
+    ]
+    ev = sensor.extra_state_attributes["events"][0]
+    assert ev["text"] == "Custom text"
+    assert ev["note_label"] == "Label"
+
+
+@pytest.mark.parametrize("additional_data", [None, {}, {"typ_text": ""}, {"typ": None}])
+async def test_behaviour_note_with_missing_metadata(hass, coordinator, additional_data):
+    """Missing note metadata is omitted instead of exposed as empty values."""
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(1, "vcelicka", None, datetime(2026, 11, 9), additional_data=additional_data)
+    ]
+    attrs = sensor.extra_state_attributes
+    ev = attrs["events"][0]
+    assert ev["text"] is None
+    assert "note_label" not in ev
+    assert "note_type" not in ev
+    assert "event_1_note_label" not in attrs
+    assert "event_1_note_type" not in attrs
+
+
+async def test_non_note_events_have_no_note_attributes(hass, coordinator):
+    sensor = _make_sensor(coordinator)
+    coordinator.data["notifications"] = [
+        _FakeEvent(1, "homework", "a", datetime(2026, 9, 1), additional_data={"typ_text": "x"})
+    ]
+    attrs = sensor.extra_state_attributes
+    assert "note_label" not in attrs["events"][0]
+    assert "event_1_note_label" not in attrs

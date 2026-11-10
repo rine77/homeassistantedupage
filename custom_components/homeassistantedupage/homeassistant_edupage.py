@@ -45,9 +45,9 @@ class Edupage:
 
     async def _async_executor(self, function, *args):
         """Do not leave a shared-session operation running after cancellation."""
-        if self.auth_failed:
+        if getattr(self, "auth_failed", False):
             raise EdupageSessionExpired("EduPage session needs reauthentication")
-        if self.context_invalid and function not in (self._load_session, self._log_grade_failure):
+        if getattr(self, "context_invalid", False) and function not in (self._load_session, self._log_grade_failure):
             raise UpdateFailed("EduPage account context needs recovery before further requests")
         try:
             return await finish_before_cancel(
@@ -71,6 +71,16 @@ class Edupage:
                 self.auth_failed = True
                 raise EdupageSessionExpired("EduPage account context needs reauthentication") from None
             self.context_invalid = False
+
+    async def logout(self):
+        """Invalidate the session on the EduPage server.
+
+        Only safe once the entry is being removed: the stored PHPSESSID is the
+        integration's credential, so logging out while the entry is still loaded
+        would force a full reauthentication on the next poll.
+        """
+        await self.hass.async_add_executor_job(self.api.logout)
+        self.sessionid = ""
 
     async def login(self, username, subdomain, sessionid):
         """Load the stored session. Never starts username/password login."""

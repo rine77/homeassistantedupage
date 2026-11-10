@@ -11,3 +11,4 @@ CONF_SUBJECT_IDS = "subject_ids"
 
 CONF_CONSULTATIONS_MY_TEACHERS = "consultations_my_teachers"
 CONF_DEADLINE_HOURS = "participation_deadline_hours"
+ISSUE_TRACKER = "https://github.com/rine77/homeassistantedupage/issues"

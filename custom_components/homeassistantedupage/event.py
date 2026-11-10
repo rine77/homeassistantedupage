@@ -16,6 +16,7 @@ from .assignment_helpers import event_recipient
 from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
 from .entity_helpers import compact_entity_name, student_device_info
 from .grade_helpers import matching_grade
+from .note_helpers import NOTE_TYPES, note_attributes, note_matches_student
 
 EVENT_NEW_GRADE = "new_grade"
 EVENT_NEW_HOMEWORK = "new_homework"
@@ -23,6 +24,7 @@ EVENT_NEW_MESSAGE = "new_message"
 EVENT_NEW_EXAM = "new_exam"
 EVENT_TIMETABLE_CHANGE = "timetable_change"
 EVENT_ARRIVAL_AT_SCHOOL = "arrival_at_school"
+EVENT_NEW_NOTE = "new_note"
 EVENT_EDUPAGE = f"{DOMAIN}_event"
 
 from .participation_monitor import PARTICIPATION_EVENTS, ParticipationTracker
@@ -35,6 +37,7 @@ EVENT_TYPES = [
     EVENT_TIMETABLE_CHANGE,
     EVENT_ARRIVAL_AT_SCHOOL,
     *PARTICIPATION_EVENTS,
+    EVENT_NEW_NOTE,
 ]
 
 _TYPE_MAP = {
@@ -53,6 +56,7 @@ _TYPE_MAP = {
     "bookroom": EVENT_TIMETABLE_CHANGE,
     "timetable": EVENT_TIMETABLE_CHANGE,
     "pipnutie": EVENT_ARRIVAL_AT_SCHOOL,
+    "vcelicka": EVENT_NEW_NOTE,
 }
 
 
@@ -216,6 +220,8 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
                     attributes[key] = grade_attributes[key]
                 grade_attributes.pop(key, None)
             attributes.update(grade_attributes)
+        if raw_type in NOTE_TYPES:
+            attributes.update(note_attributes(event))
         return {
             key: _serialize_value(value)
             for key, value in attributes.items()
@@ -244,6 +250,12 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
                 continue
             raw_type = _event_type_value(event)
             mapped_type = _TYPE_MAP.get(raw_type)
+            if raw_type in NOTE_TYPES and not note_matches_student(
+                event, self._student_id, self._student_name
+            ):
+                # Behaviour notes are personal, but parent accounts share a
+                # timeline across siblings: emit only when attributable.
+                mapped_type = None
             if mapped_type is not None:
                 attributes = self._event_attributes(event, raw_type)
                 self._trigger_event(

@@ -192,7 +192,7 @@ async def test_reauth_success_aborts_and_reloads_entry(hass: HomeAssistant, conf
     # The reload-and-abort path was actually invoked.
     assert recorded == {
         "entry_id": entry_id,
-        "data_updates": {CONF_PHPSESSID: "phpsess_123"},
+        "data_updates": {CONF_PHPSESSID: "phpsess_123", "username": "user", "subdomain": "mshviezdoslavova1"},
         "reason": "reauth_successful",
     }
 
@@ -308,3 +308,19 @@ async def test_options_update_listener_reloads_entry(
         await _async_update_listener(hass, config_entry)
 
     reload_mock.assert_awaited_once_with(config_entry.entry_id)
+
+async def test_reconfigure_rejects_account_without_configured_child(hass, config_entry):
+    api = _api_logged_in()
+    api.get_students.return_value = [SimpleNamespace(person_id=999)]
+    old_data = dict(config_entry.data)
+    with patch("custom_components.homeassistantedupage.config_flow.Edupage", return_value=api):
+        form = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": config_entry.entry_id},
+        )
+        result = await hass.config_entries.flow.async_configure(form["flow_id"], {
+            "username": "other-parent", "password": "pw", "subdomain": "other-school",
+        })
+    assert result["type"] is data_entry_flow.FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert dict(config_entry.data) == old_data
+

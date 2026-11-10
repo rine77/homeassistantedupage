@@ -13,6 +13,7 @@ from custom_components.homeassistantedupage.event import (
     EVENT_NEW_EXAM,
     EVENT_NEW_GRADE,
     EVENT_NEW_HOMEWORK,
+    EVENT_NEW_NOTE,
     EduPageEventEntity,
 )
 
@@ -238,3 +239,93 @@ def test_event_entity_creates_student_device(coordinator):
         ("homeassistantedupage", "1")
     }
     assert entity.device_info["name"] == "EduPage - Max Example"
+
+
+_NOTE_DATA = {
+    "typ": "disrespecting",
+    "typ_text": "Does not follow the teacher's instructions",
+    "predmetid": 1,
+    "vcelickaid": 1304438,
+    "mesiac": "P1",
+}
+
+
+def test_behaviour_note_is_triggered_with_label(coordinator):
+    """A ``vcelicka`` timeline item is emitted as a new behaviour note."""
+    entity = _entity(coordinator)
+    triggered = []
+    entity._trigger_event = lambda event_type, data: triggered.append(
+        (event_type, data)
+    )
+    entity.async_write_ha_state = lambda: None
+
+    coordinator.data["notifications"] = [
+        _event(
+            30,
+            "vcelicka",
+            text=None,
+            recipient="Max Example",
+            additional_data=_NOTE_DATA,
+        )
+    ]
+    entity._handle_coordinator_update()
+
+    assert len(triggered) == 1
+    event_type, data = triggered[0]
+    assert event_type == EVENT_NEW_NOTE
+    assert data["text"] == "Does not follow the teacher's instructions"
+    assert data["note_label"] == "Does not follow the teacher's instructions"
+    assert data["note_type"] == "disrespecting"
+    assert data["subject"] == "Maths"
+
+
+def test_behaviour_note_for_sibling_is_not_triggered(coordinator):
+    """Notes addressed to another child on a shared parent timeline are skipped."""
+    entity = _entity(coordinator)
+    triggered = []
+    entity._trigger_event = lambda event_type, data: triggered.append(
+        (event_type, data)
+    )
+    entity.async_write_ha_state = lambda: None
+
+    coordinator.data["notifications"] = [
+        _event(
+            31,
+            "vcelicka",
+            text=None,
+            recipient="Other Child",
+            additional_data=_NOTE_DATA,
+        )
+    ]
+    entity._handle_coordinator_update()
+
+    assert triggered == []
+    assert 31 in entity._known_event_ids
+
+
+@pytest.mark.parametrize("recipient", [None, "*", "Whole school", "5.A"])
+def test_behaviour_note_without_reliable_recipient_is_not_triggered(
+    coordinator, recipient
+):
+    """Notes that cannot be attributed to one student are never emitted."""
+    entity = _entity(coordinator)
+    triggered = []
+    entity._trigger_event = lambda event_type, data: triggered.append(
+        (event_type, data)
+    )
+    entity.async_write_ha_state = lambda: None
+
+    coordinator.data["notifications"] = [
+        _event(
+            32,
+            "vcelicka",
+            text=None,
+            recipient=recipient,
+            additional_data=_NOTE_DATA,
+        )
+    ]
+    entity._handle_coordinator_update()
+    entity._handle_coordinator_update()
+
+    assert triggered == []
+    assert 32 in entity._known_event_ids

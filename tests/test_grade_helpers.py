@@ -47,3 +47,25 @@ def test_linkage_traversal_is_bounded_and_ignores_unrelated_values():
 
     assert grade_reference_ids(event) == set()
     assert matching_grade(event, [SimpleNamespace(event_id=21)]) is None
+
+
+def test_subject_audit_distinguishes_mapping_from_options():
+    from custom_components.homeassistantedupage.grade_helpers import grade_subject_audit
+
+    subjects = [SimpleNamespace(subject_id=1), SimpleNamespace(subject_id="2")]
+    grades = [
+        SimpleNamespace(event_id=10, subject_id="1", grade_n="SECRET"),
+        SimpleNamespace(event_id=11, subject_id=2),
+        SimpleNamespace(event_id=12, subject_id=-1),
+    ]
+    result = grade_subject_audit(grades, subjects, [1])
+    assert result == {
+        "received": 3,
+        "assigned": 2,
+        "selected": 1,
+        "unassigned": [(12, -1)],
+        "excluded_by_options": [(11, 2)],
+    }
+    assert "SECRET" not in repr(result)
+    assert grade_subject_audit(grades, subjects, [])["selected"] == 0
+    assert grade_subject_audit(grades, subjects, None)["selected"] == 2

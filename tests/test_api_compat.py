@@ -171,7 +171,7 @@ async def test_timetable_selects_a_child_before_the_fallback(hass: HomeAssistant
 
     api.switch_to_child.assert_called_once_with(student)
     api.get_my_timetable.assert_called_once_with(DAY)
-    api.switch_to_parent.assert_called_once_with()
+    api.switch_to_parent.assert_not_called()
     assert result == "timetable"
 
 
@@ -184,7 +184,7 @@ async def test_timetable_switches_back_even_when_the_retry_fails(hass: HomeAssis
     with pytest.raises(ValueError):
         _wrapper(hass, api)._get_timetable(MagicMock(), DAY)
 
-    api.switch_to_parent.assert_called_once_with()
+    api.switch_to_parent.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

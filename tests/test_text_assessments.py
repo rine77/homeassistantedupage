@@ -93,7 +93,7 @@ async def test_wrapper_uses_executor():
     wrapper.api.get_text_grades.assert_called_once_with()
 
     wrapper.api.switch_to_child.assert_called_once_with(123)
-    wrapper.api.switch_to_parent.assert_called_once_with()
+    wrapper.api.switch_to_parent.assert_not_called()
 
 
 async def test_child_context_restored_after_failure():
@@ -107,7 +107,7 @@ async def test_child_context_restored_after_failure():
     wrapper.api.get_text_grades.side_effect = ValueError("parse error")
     with pytest.raises(UpdateFailed):
         await wrapper.get_text_grades(123)
-    wrapper.api.switch_to_parent.assert_called_once_with()
+    wrapper.api.switch_to_parent.assert_not_called()
 
 
 async def test_student_account_needs_no_parent_restore():

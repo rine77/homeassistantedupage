@@ -132,7 +132,7 @@ async def test_get_timetable_retries_in_selected_child_context():
     assert result == ["child lesson"]
     api.switch_to_child.assert_called_once_with(student)
     api.get_my_timetable.assert_called_once_with("2026-09-24")
-    api.switch_to_parent.assert_called_once_with()
+    api.switch_to_parent.assert_not_called()
 
 
 async def test_get_timetable_restores_parent_context_when_fallback_fails():
@@ -148,7 +148,7 @@ async def test_get_timetable_restores_parent_context_when_fallback_fails():
         await _wrapper(api).get_timetable(student, "2026-09-24")
 
     api.switch_to_child.assert_called_once_with(student)
-    api.switch_to_parent.assert_called_once_with()
+    api.switch_to_parent.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ async def test_numeric_and_term_grades_use_selected_child_and_restore_parent():
         "term-grade"
     ]
     assert api.switch_to_child.call_count == 2
-    assert api.switch_to_parent.call_count == 2
+    assert api.switch_to_parent.call_count == 0
 
 
 async def test_grade_error_logs_root_cause_without_session(caplog):
@@ -208,7 +208,7 @@ async def test_grade_error_logs_root_cause_without_session(caplog):
     assert "ValueError: invalid numeric grade [redacted]" in caplog.text
     assert "library=" in caplog.text
     assert wrapper.grade_errors["get_grades"]["cause"].startswith("ValueError:")
-    api.switch_to_parent.assert_called_once()
+    api.switch_to_parent.assert_not_called()
 
 
 async def test_grade_reports_are_separate_for_current_and_terms():
@@ -261,71 +261,66 @@ async def test_outer_exception_logging_cannot_restore_unredacted_grade_chain(cap
     assert "direct cause" not in caplog.text
 
 
-async def test_parent_restore_failure_keeps_read_and_quarantines_session(caplog):
+async def test_reads_alternate_children_without_account_switch():
     from types import SimpleNamespace
     from edupage_api.exceptions import UnknownServerError
-
     api = MagicMock()
-    api.get_grades.return_value = ["verified grade"]
-    api.grade_read_report = {"received": 1, "parsed": 1, "skipped": 0}
+    selected = []
+    api.switch_to_child.side_effect = lambda child: selected.append(child.person_id)
+    api.get_grades.side_effect = lambda *args: [selected[-1]]
     api.switch_to_parent.side_effect = UnknownServerError()
     wrapper = _wrapper(api)
-    assert await wrapper.get_grades(SimpleNamespace(person_id=99)) == ["verified grade"]
-    assert wrapper.grade_reports["grades"]["parsed"] == 1
-    assert wrapper.context_invalid
-    with pytest.raises(UpdateFailed):
-        await wrapper.get_subjects()
-    api.get_subjects.assert_not_called()
-    assert "UnknownServerError" in caplog.text
-
-
-async def test_cleanup_failure_does_not_replace_primary_grade_error():
-    from types import SimpleNamespace
-    from edupage_api.exceptions import UnknownServerError
-
-    api = MagicMock()
-    api.get_grades.side_effect = ValueError("primary parse failure")
-    api.switch_to_parent.side_effect = UnknownServerError()
-    wrapper = _wrapper(api)
-    with pytest.raises(UpdateFailed):
-        await wrapper.get_grades(SimpleNamespace(person_id=99))
-    assert "primary parse failure" in wrapper.grade_errors["get_grades"]["cause"]
-    assert wrapper.context_invalid
-
-
-async def test_context_recovery_uses_reloaded_identity_before_other_child():
-    from types import SimpleNamespace
-    from edupage_api.exceptions import UnknownServerError
-
-    api = MagicMock()
-    api.get_grades.return_value = ["child 1"]
-    api.switch_to_parent.side_effect = [UnknownServerError(), None, None]
-    wrapper = _wrapper(api)
-    assert await wrapper.get_grades(SimpleNamespace(person_id=1)) == ["child 1"]
-    with patch("custom_components.homeassistantedupage.homeassistant_edupage.LoginSession") as login:
-        await wrapper.login("canonical-parent", "school", "new-session")
-        login.return_value.reload_data.assert_called_once_with("school", "new-session", "canonical-parent")
+    for child_id in (1, 2, 1):
+        assert await wrapper.get_grades(SimpleNamespace(person_id=child_id)) == [child_id]
+    assert selected == [1, 2, 1]
     assert not wrapper.context_invalid
+    await wrapper.get_subjects()
+    api.get_subjects.assert_called_once()
+    api.switch_to_parent.assert_not_called()
+
+
+async def test_failed_child_selection_never_reads_previous_child_and_reload_recovers():
+    from types import SimpleNamespace
+    api = MagicMock()
+    wrapper = _wrapper(api)
+    api.switch_to_child.side_effect = RuntimeError("selection failed")
+    with pytest.raises(UpdateFailed):
+        await wrapper.get_grades(SimpleNamespace(person_id=2))
+    api.get_grades.assert_not_called()
+    assert wrapper.context_invalid
+    with patch("custom_components.homeassistantedupage.homeassistant_edupage.LoginSession") as login:
+        await wrapper.login("parent", "school", "new-session")
+        login.return_value.reload_data.assert_called_once_with("school", "new-session", "parent")
+    assert not wrapper.context_invalid
+    assert api._selected_child_id is None
+    api.switch_to_child.side_effect = None
     api.get_grades.return_value = ["child 2"]
     assert await wrapper.get_grades(SimpleNamespace(person_id=2)) == ["child 2"]
-    assert [call.args[0].person_id for call in api.switch_to_child.call_args_list] == [1, 2]
+    api.switch_to_parent.assert_not_called()
 
 
-async def test_context_failure_after_successful_login_is_not_auth_failure():
-    from homeassistant.exceptions import ConfigEntryAuthFailed
-    from edupage_api.exceptions import UnknownServerError
-
+async def test_grade_parse_failure_preserves_session_and_next_child_can_read():
+    from types import SimpleNamespace
     api = MagicMock()
-    api.switch_to_parent.side_effect = UnknownServerError()
+    api.get_grades.side_effect = [ValueError("primary parse failure"), ["child 2"]]
+    wrapper = _wrapper(api)
+    with pytest.raises(UpdateFailed):
+        await wrapper.get_grades(SimpleNamespace(person_id=1))
+    assert not wrapper.context_invalid
+    assert await wrapper.get_grades(SimpleNamespace(person_id=2)) == ["child 2"]
+    assert [c.args[0].person_id for c in api.switch_to_child.call_args_list] == [1, 2]
+    api.switch_to_parent.assert_not_called()
+
+
+async def test_context_recovery_after_valid_bootstrap_does_not_switch_account():
+    api = MagicMock()
     wrapper = _wrapper(api)
     wrapper.context_invalid = True
     with patch("custom_components.homeassistantedupage.homeassistant_edupage.LoginSession"):
-        with pytest.raises(UpdateFailed, match="session reload succeeded") as caught:
-            await wrapper.login("parent", "school", "session")
-    assert not isinstance(caught.value, ConfigEntryAuthFailed)
+        await wrapper.login("parent", "school", "session")
     assert not wrapper.auth_failed
-    assert wrapper.context_invalid
-    api.get_grades.assert_not_called()
+    assert not wrapper.context_invalid
+    api.switch_to_parent.assert_not_called()
 
 
 async def test_mid_read_expiry_is_auth_failure_and_stops_next_network_call():
@@ -412,7 +407,7 @@ async def test_null_timetable_rpc_gets_one_verified_child_read():
     assert list(result) == []
     assert contexts == [None, -1]
     assert not wrapper.auth_failed
-    assert api._selected_child_id is None
+    assert api._selected_child_id == -1
     assert all(call.kwargs["json"]["__args"][1]["id"] == "-1" for call in api.session.post.call_args_list)
 
 
@@ -430,7 +425,7 @@ async def test_failed_child_timetable_read_is_not_retried_or_reauthenticated():
     assert not wrapper.auth_failed
     api.get_timetable.assert_called_once()
     api.get_my_timetable.assert_called_once()
-    api.switch_to_parent.assert_called_once()
+    api.switch_to_parent.assert_not_called()
 
 
 async def test_false_grade_auth_signal_does_not_log_suppressed_payload(caplog):
@@ -448,3 +443,56 @@ async def test_false_grade_auth_signal_does_not_log_suppressed_payload(caplog):
         await wrapper.get_grades()
     assert "PRIVATE MODULE PAYLOAD" not in caplog.text
     assert not wrapper.auth_failed
+
+async def test_real_client_selects_each_child_again_after_session_reload():
+    from types import SimpleNamespace
+    from edupage_api import Edupage as Client
+    from edupage_api.people import EduStudent
+
+    api = Client()
+    api.is_logged_in = True
+    api.subdomain = "school"
+    api.username = "parent"
+    api.data = {"userid": "Rodic1"}
+    api.session = MagicMock()
+    calls = []
+
+    def request(url, **kwargs):
+        if url.endswith("/login/switchchild"):
+            calls.append(kwargs["params"]["studentid"])
+            return SimpleNamespace(text="OK")
+        assert url.endswith("/user"), "unexpected account switch"
+        page = 'userhome({"userid":"Rodic1"});'
+        return SimpleNamespace(text=page, content=page.encode(), status_code=200,
+                               url=url, headers={}, history=[])
+
+    api.session.get.side_effect = request
+    api.get_grades = MagicMock(side_effect=lambda *a: [api._selected_child_id])
+    wrapper = _wrapper(api)
+    children = {}
+    for child_id in (1, 2):
+        children[child_id] = EduStudent.__new__(EduStudent)
+        children[child_id].person_id = child_id
+    for child_id in (1, 2, 1):
+        assert await wrapper.get_grades(children[child_id]) == [child_id]
+    wrapper.context_invalid = True
+    await wrapper.login("parent", "school", "session")
+    assert not wrapper.context_invalid
+    assert api._selected_child_id is None
+    assert await wrapper.get_grades(children[2]) == [2]
+    assert calls == [1, 2, 1, 2]
+    assert api.get_user_id() == "Rodic1"
+
+
+async def test_failed_reload_does_not_clear_invalid_context():
+    from edupage_api.exceptions import BadCredentialsException
+    api = MagicMock()
+    wrapper = _wrapper(api)
+    wrapper.context_invalid = True
+    with patch("custom_components.homeassistantedupage.homeassistant_edupage.LoginSession") as login:
+        login.return_value.reload_data.side_effect = BadCredentialsException()
+        with pytest.raises(EdupageSessionExpired):
+            await wrapper.login("parent", "school", "expired")
+    assert wrapper.context_invalid
+    assert wrapper.auth_failed
+    api.switch_to_parent.assert_not_called()

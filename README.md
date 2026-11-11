@@ -661,3 +661,35 @@ Thanks to everyone who has contributed code, testing, translations, reports, and
 ## License
 
 See the repository's [license file](LICENSE) for details.
+
+
+### Grade read completeness and child context
+
+Grade reads explicitly select the configured child and restore the parent, under
+one lock shared by entries using the same server session. Executor work completes
+restoration before cancellation can release that lock.
+
+Subject and term sensors expose `grades_received_total`, `grades_skipped_total`
+and `grades_complete`. Counts refer to the whole child/term response. A failed or
+unreported response has unknown completeness, rather than a misleading zero.
+Subject IDs match across numeric/string representations without merging signed IDs.
+Debug audits contain identifiers and counts only. Grade failures log redacted causes
+and traceback locations; later exception logging suppresses the original chain.
+
+This change preserves existing numeric averages. Standalone grade parsing requires
+the SDK changes in https://github.com/EdupageAPI/edupage-api/pull/136; the production
+dependency pin must be updated after that SDK is released.
+
+
+### Optional letter-grade averages
+
+Options provides an opt-in conversion of A–F for weighted averages. The defaults
+are A=1, B=2, C=3, D=4, E=5, F=5; each letter's value can be changed for your school.
+Conversion is disabled by default. Original grade values remain unchanged.
+Subject sensors expose grade_average, and term sensors also expose subject_averages.
+The grade_average_converted attribute identifies an average including letters;
+grade_average_method is arithmetic while conversion is disabled, preserving
+the existing numeric term averages. Enabling conversion explicitly selects weighted
+averages for numeric and converted grades. Missing weights default to 1; nonpositive or
+invalid weights are excluded. (NESPLNĚNO), unknown symbols and nonfinite values
+are excluded from averages, while remaining visible as grades.

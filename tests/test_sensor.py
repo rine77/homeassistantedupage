@@ -385,6 +385,72 @@ def test_single_oversized_notification_is_omitted(coordinator):
     assert "event_1_id" not in attrs
 
 
+def test_subject_matches_string_and_integer_ids():
+    from types import SimpleNamespace
+    grades = [SimpleNamespace(subject_id="5"), SimpleNamespace(subject_id=-5)]
+    coordinator = SimpleNamespace(data={"grades": grades})
+    entity = EduPageSubjectSensor(coordinator, 1, "Student", "Inf", 5)
+    assert entity._current_grades == [grades[0]]
+    assert sensor_module.group_grades_by_subject(grades)["5"] == [grades[0]]
+
+
+
+async def test_subject_exposes_skipped_grade_count(hass, coordinator):
+    coordinator.data.update({
+        "grades": [_FakeGrade("A", "Test", datetime(2026, 10, 19), subject_id=1)],
+        "grade_reports": {"grades": {"received": 13, "parsed": 9, "skipped": 4}},
+    })
+    entity = EduPageSubjectSensor(coordinator, 1, "Student", "Inf", 1)
+    assert entity.extra_state_attributes["grades_skipped_total"] == 4
+    assert entity.extra_state_attributes["grades_complete"] is False
+
+
+async def test_subject_sensor_exposes_letter_average_and_skipped_count(hass, coordinator):
+    from types import SimpleNamespace
+    coordinator.config_entry = SimpleNamespace(options={"convert_letter_grades": True})
+    coordinator.data.update({
+        "grades": [_FakeGrade("A", "Test", datetime(2026, 10, 19), subject_id=1)],
+        "grade_reports": {"grades": {"received": 13, "parsed": 9, "skipped": 4}},
+    })
+    entity = EduPageSubjectSensor(coordinator, 1, "Student", "Inf", 1)
+    attrs = entity.extra_state_attributes
+    assert attrs["grade_average"] == 1
+    assert attrs["grade_average_converted"] is True
+    assert attrs["grades_skipped_total"] == 4
+    assert attrs["grades_complete"] is False
+
+
+
+async def test_term_sensor_uses_configured_weighted_letters_and_term_report(hass, coordinator):
+    from types import SimpleNamespace
+    from custom_components.homeassistantedupage.sensor import EduPageTermAverageSensor
+    coordinator.config_entry = SimpleNamespace(options={"convert_letter_grades": True, "letter_grade_f": 6})
+    grades = [SimpleNamespace(grade_n="A", importance=2, subject_id=1, subject_name="Inf"),
+              SimpleNamespace(grade_n="F", importance=1, subject_id=1, subject_name="Inf"),
+              SimpleNamespace(grade_n="(NESPLNĚNO)", importance=100, subject_id=1, subject_name="Inf")]
+    coordinator.data.update({"grades_per_term": {"first": grades},
+                             "data_ok": {"grades_per_term": True},
+                             "grade_reports": {"term_P1": {"received": 3, "skipped": 0}}})
+    entity = EduPageTermAverageSensor(coordinator, 1, "Student", "first")
+    assert entity.state == 2.67
+    assert entity.extra_state_attributes["subject_averages"] == {"Inf": 2.67}
+    assert entity.extra_state_attributes["grade_average_converted"] is True
+    assert entity.extra_state_attributes["grades_complete"] is True
+
+
+
+async def test_term_average_stays_arithmetic_without_letter_conversion(hass, coordinator):
+    from types import SimpleNamespace
+    from custom_components.homeassistantedupage.sensor import EduPageTermAverageSensor
+    coordinator.config_entry = SimpleNamespace(options={})
+    coordinator.data.update({"grades_per_term": {"first": [
+        SimpleNamespace(grade_n=1, importance=4, subject_id=1, subject_name="Inf"),
+        SimpleNamespace(grade_n=5, importance=1, subject_id=1, subject_name="Inf"),
+    ]}, "data_ok": {"grades_per_term": True}})
+    entity = EduPageTermAverageSensor(coordinator, 1, "Student", "first")
+    assert entity.state == 3.0
+    assert entity.extra_state_attributes["subject_averages"] == {"Inf": 3.0}
+    assert entity.extra_state_attributes["grade_average_method"] == "arithmetic"
 async def test_behaviour_note_metadata_is_exposed(hass, coordinator):
     """Notes expose label, type and a text fallback in both formats."""
     sensor = _make_sensor(coordinator)

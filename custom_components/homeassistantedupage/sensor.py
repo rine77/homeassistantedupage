@@ -11,6 +11,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
+from .grade_helpers import subject_key, grade_subject_audit
+from .grade_status import completeness_attributes
+from .grade_average import average_summary, coordinator_mapping
 from .assignment_helpers import event_matches_student, event_recipient
 from .note_helpers import NOTE_TYPES, note_attributes
 from .const import (
@@ -128,7 +131,7 @@ def group_grades_by_subject(grades):
     """grouping grades based on subject_id."""
     grouped = defaultdict(list)
     for grade in grades:
-        grouped[grade.subject_id].append(grade)
+        grouped[subject_key(grade.subject_id)].append(grade)
     return grouped
 
 
@@ -153,6 +156,10 @@ async def async_setup_entry(
     )
 
     subjects = coordinator.data.get("subjects", [])
+    if _LOGGER.isEnabledFor(logging.DEBUG):
+        _LOGGER.debug("Grade subject options audit: student_id=%s %s", student_id,
+                      grade_subject_audit(coordinator.data.get("grades", []), subjects,
+                                          entry.options.get(CONF_SUBJECT_IDS)))
     selected_subject_ids = entry.options.get(CONF_SUBJECT_IDS)
 
     # Entries without this option predate subject selection and retain the
@@ -175,7 +182,7 @@ async def async_setup_entry(
     subject_unique_ids = set()
 
     for subject in subjects:
-        subject_grades = grades_by_subject.get(subject.subject_id, [])
+        subject_grades = grades_by_subject.get(subject_key(subject.subject_id), [])
 
         sensor = EduPageSubjectSensor(
             coordinator,
@@ -537,7 +544,7 @@ class EduPageSubjectSensor(StateRestoringSensor):
         if self._subject_id is None:
             return self._grades
         return [
-            g for g in all_grades if getattr(g, "subject_id", None) == self._subject_id
+            g for g in all_grades if subject_key(getattr(g, "subject_id", None)) == subject_key(self._subject_id)
         ]
 
     @property
@@ -616,6 +623,8 @@ class EduPageSubjectSensor(StateRestoringSensor):
                 }
             )
         attributes["data_stale"] = self.data_stale
+        attributes.update(average_summary(current_grades, coordinator_mapping(self.coordinator)))
+        attributes.update(completeness_attributes(self.coordinator))
         attributes.update(self._text_attributes(attributes))
         return attributes
 
@@ -800,10 +809,9 @@ def _grade_numeric(grade_n):
         return None
 
 
-def _average(grades):
-    """Weighted-agnostic arithmetic mean of numeric grade values."""
-    values = [v for v in (_grade_numeric(g.grade_n) for g in grades) if v is not None]
-    return round(sum(values) / len(values), 2) if values else None
+def _average(grades, mapping=None):
+    """Keep numeric averages arithmetic unless school conversion is enabled."""
+    return average_summary(grades, mapping)["grade_average"]
 
 
 class EduPageSubstitutionSensor(StateRestoringSensor):
@@ -966,7 +974,7 @@ class EduPageTermAverageSensor(StateRestoringSensor):
     @property
     def state(self):
         if self._data_is_fresh():
-            avg = _average(self._current_grades)
+            avg = _average(self._current_grades, coordinator_mapping(self.coordinator))
             return self._set_value(avg if avg is not None else "unknown")
         if self._last_value is not None:
             return self._last_value
@@ -980,7 +988,7 @@ class EduPageTermAverageSensor(StateRestoringSensor):
             by_subject[grade.subject_name or grade.subject_id].append(grade)
 
         subject_averages = {
-            str(subject): _average(subject_grades)
+            str(subject): _average(subject_grades, coordinator_mapping(self.coordinator))
             for subject, subject_grades in by_subject.items()
         }
 
@@ -990,7 +998,8 @@ class EduPageTermAverageSensor(StateRestoringSensor):
             "school_year": self._school_year,
             "term": self._term_key,
             "grade_count": len(grades),
-            "grade_average": _average(grades),
+            **average_summary(grades, coordinator_mapping(self.coordinator)),
+            **completeness_attributes(self.coordinator, "term_P1" if self._term_key == "first" else "term_P2"),
             "subject_averages": subject_averages,
             "data_stale": self.data_stale,
         }

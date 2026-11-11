@@ -31,9 +31,7 @@ def grade_reference_ids(event: Any) -> set[str]:
         budget[0] -= 1
         if isinstance(value, dict):
             for key, item in value.items():
-                if str(key) == "udalostid" and (
-                    reference := _reference(item)
-                ):
+                if str(key) == "udalostid" and (reference := _reference(item)):
                     references.add(reference)
                 inspect(item, depth + 1)
         elif isinstance(value, (list, tuple)):
@@ -60,3 +58,43 @@ def matching_grade(event: Any, grades: list[Any]) -> Any | None:
             if _reference(getattr(grade, "event_id", None)) == reference:
                 return grade
     return None
+
+
+def subject_key(value):
+    """Compare integer/string subject IDs without merging signed identifiers."""
+    return None if value is None else str(value)
+
+
+def grade_subject_audit(grades, subjects, selected_subject_ids):
+    """Count assignments using identifiers only; never include grade values."""
+    known = {
+        subject_key(value)
+        for subject in subjects
+        if (value := getattr(subject, "subject_id", None)) is not None
+    }
+    selected = {subject_key(value) for value in selected_subject_ids or []}
+    unassigned = [
+        grade
+        for grade in grades
+        if subject_key(getattr(grade, "subject_id", None)) not in known
+    ]
+    excluded = [
+        grade
+        for grade in grades
+        if subject_key(getattr(grade, "subject_id", None)) in known
+        and selected_subject_ids is not None
+        and subject_key(getattr(grade, "subject_id", None)) not in selected
+    ]
+    return {
+        "received": len(grades),
+        "assigned": len(grades) - len(unassigned),
+        "selected": len(grades) - len(unassigned) - len(excluded),
+        "unassigned": [
+            (getattr(grade, "event_id", None), getattr(grade, "subject_id", None))
+            for grade in unassigned
+        ],
+        "excluded_by_options": [
+            (getattr(grade, "event_id", None), getattr(grade, "subject_id", None))
+            for grade in excluded
+        ],
+    }

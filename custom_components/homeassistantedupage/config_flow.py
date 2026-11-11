@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import timedelta
 
 import voluptuous as vol
@@ -28,6 +29,15 @@ from .const import (
     DOMAIN,
     ISSUE_TRACKER,
 )
+
+from .grade_average import CONF_LETTER_GRADES, DEFAULT_LETTER_MAPPING
+
+def _letter_value(value):
+    number = vol.Coerce(float)(value)
+    if not math.isfinite(number) or not 0 <= number <= 100:
+        raise vol.Invalid("Letter value must be a finite number from 0 to 100")
+    return number
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -336,7 +346,7 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         PHPSESSID and reloads the config entry. Completed as a reauthentication.
         """
         self._reauth = True
-        return await self.async_step_reconfigure(user_input)
+        return await self.async_step_reconfigure()
 
     async def async_step_reconfigure(self, user_input=None):
         """Re-login to refresh an expired stored session.
@@ -360,6 +370,7 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             password = user_input[CONF_PASSWORD]
             subdomain = user_input.get(CONF_SUBDOMAIN) or entry.data[CONF_SUBDOMAIN]
 
+            self._reconfig_identity = {CONF_USERNAME: username, CONF_SUBDOMAIN: subdomain}
             api = Edupage()
             try:
                 second_factor = await self.hass.async_add_executor_job(
@@ -421,11 +432,6 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not errors:
                 return await self._apply_reconfigure(api)
 
-            if self._reauth:
-                return self.async_abort(
-                    reason="reauth_unsuccessful",
-                    description_placeholders={"error": errors.get("base", "cannot_connect")},
-                )
 
         data_schema = vol.Schema(
             {
@@ -475,10 +481,23 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 step_id="reconfigure",
                 errors={"base": "cannot_connect"},
             )
+        identity = getattr(self, "_reconfig_identity", {
+            CONF_USERNAME: entry.data[CONF_USERNAME], CONF_SUBDOMAIN: entry.data[CONF_SUBDOMAIN],
+        })
+        try:
+            students = await self.hass.async_add_executor_job(api.get_students)
+        except Exception:
+            form = await self.async_step_reconfigure()
+            form["errors"] = {"base": "cannot_connect"}
+            return form
+        if not any(str(s.person_id) == str(entry.data[CONF_STUDENT_ID]) for s in students or []):
+            form = await self.async_step_reconfigure()
+            form["errors"] = {"base": "invalid_auth"}
+            return form
         reason = "reauth_successful" if self._reauth else "reconfigured"
         return self.async_update_reload_and_abort(
             entry,
-            data_updates={CONF_PHPSESSID: phpsess},
+            data_updates={**identity, CONF_PHPSESSID: phpsess},
             reason=reason,
         )
 
@@ -515,8 +534,19 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
             )
         ]
 
+        errors = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            user_input = dict(user_input)
+            for letter in DEFAULT_LETTER_MAPPING:
+                key = f"letter_grade_{letter.lower()}"
+                if key in user_input:
+                    try:
+                        user_input[key] = _letter_value(user_input[key])
+                    except vol.Invalid:
+                        errors[key] = "invalid_letter_value"
+                        user_input[key] = self.config_entry.options.get(key, DEFAULT_LETTER_MAPPING[letter])
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
 
         available_subject_ids = [
             option["value"] for option in subject_options
@@ -533,6 +563,7 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
+            errors=errors,
             data_schema=vol.Schema(
                 {
                     vol.Required(
@@ -544,7 +575,15 @@ class EdupageOptionsFlow(config_entries.OptionsFlow):
                             multiple=True,
                             mode=selector.SelectSelectorMode.DROPDOWN,
                         )
-                    )
+                    ),
+                    vol.Optional(CONF_LETTER_GRADES,
+                                 default=self.config_entry.options.get(CONF_LETTER_GRADES, False)): bool,
+                    **{
+                        vol.Optional(f"letter_grade_{letter.lower()}",
+                                     default=(user_input or self.config_entry.options).get(f"letter_grade_{letter.lower()}", value)):
+                            vol.All(vol.Coerce(float), vol.Range(min=0, max=100))
+                        for letter, value in DEFAULT_LETTER_MAPPING.items()
+                    },
                 }
             ),
         )

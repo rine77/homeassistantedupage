@@ -69,7 +69,9 @@
         "title": "Select subjects",
         "description": "Select the subjects for which grade sensors should be created. Other EduPage sensors are not affected.",
         "data": {
-          "subject_ids": "Subjects"
+          "subject_ids": "Subjects",
+          "consultations_my_teachers": "Consultations only with my child’s teachers",
+          "participation_deadline_hours": "Deadline warning (hours)"
         }
       }
     }
@@ -82,7 +84,74 @@
       "new_exam": "A new exam was received",
       "timetable_change": "A timetable change was received",
       "arrival_at_school": "An arrival at school was recorded",
+      "consultation_block_published": "Consultation block published",
+      "consultation_booked": "Consultation booked",
+      "consultation_booking_opened": "Consultation booking opened",
+      "consultation_changed": "Consultation changed",
+      "consultation_cancelled": "Consultation cancelled",
+      "consultation_booking_closing": "Consultation booking closing",
+      "registration_opened": "Registration opened",
+      "registration_deadline_soon": "Registration deadline soon",
       "new_note": "A new behaviour note was received"
+    }
+  },
+  "exceptions": {
+    "consultation_rejected": {
+      "message": "EduPage rejected the request. Check booking rules on its website."
+    },
+    "slot_taken": {
+      "message": "This slot is no longer free."
+    },
+    "booking_closed": {
+      "message": "The booking window is closed."
+    },
+    "booking_limit": {
+      "message": "An own booking exists in this block or a booking limit was reached."
+    },
+    "booking_not_owned": {
+      "message": "The own booking was not found or cancellation is ambiguous."
+    },
+    "booking_uncertain": {
+      "message": "The write outcome could not be verified. Check EduPage before retrying."
+    },
+    "entry_not_loaded": {
+      "message": "The selected child entry is not loaded."
+    },
+    "session_expired": {
+      "message": "The session expired. Sign in again."
+    },
+    "invalid_start": {
+      "message": "Use an ISO datetime including a timezone."
+    },
+    "select_consultation": {
+      "message": "Select a consultation first."
+    },
+    "note_unsupported": {
+      "message": "Participant notes are not supported by the inspected booking protocol."
+    },
+    "slot_not_found": {
+      "message": "This time does not exist in this consultation block."
+    },
+    "unrelated_teacher": {
+      "message": "The teacher is not verified for this child. Check the child entry, or explicitly set allow_unrelated_teacher."
+    }
+  },
+  "entity": {
+    "select": {
+      "consultation_slot": {
+        "name": "Available consultation"
+      },
+      "consultation_booking": {
+        "name": "Booked consultation"
+      }
+    },
+    "button": {
+      "book_consultation": {
+        "name": "Book selected consultation"
+      },
+      "cancel_consultation": {
+        "name": "Cancel selected consultation"
+      }
     }
   }
 }

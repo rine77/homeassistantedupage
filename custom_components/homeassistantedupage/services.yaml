@@ -110,3 +110,51 @@ send_message:
       description: Config entry ID to target when multiple EduPage entries are loaded.
       example: 01J4XYZABC
       required: false
+
+book_consultation:
+  name: Book consultation
+  description: Check a free consultation and confirm it. Dry run defaults to true and only reads.
+  fields:
+    entry_id:
+      required: true
+      selector:
+        text:
+    consultation_id:
+      required: true
+      selector:
+        text:
+    start:
+      description: ISO datetime including timezone, copied from a slot start attribute.
+      required: true
+      selector:
+        text:
+    dry_run:
+      default: true
+      selector:
+        boolean:
+    allow_unrelated_teacher:
+      description: Explicitly override the child's teacher filter for this booking only. Defaults to false.
+      default: false
+      selector:
+        boolean:
+    note:
+      description: Notes are not supported by the inspected protocol; a nonempty note is rejected.
+      selector:
+        text:
+
+cancel_consultation:
+  name: Cancel consultation
+  description: Cancel only the specified own booking. Dry run defaults to true.
+  fields:
+    entry_id:
+      required: true
+      selector:
+        text:
+    visit_id:
+      required: true
+      selector:
+        text:
+    dry_run:
+      default: true
+      selector:
+        boolean:

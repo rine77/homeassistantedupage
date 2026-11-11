@@ -69,7 +69,9 @@
         "title": "Seleccionar asignaturas",
         "description": "Selecciona las asignaturas para las que se deben crear sensores de calificaciones. Los demás sensores de EduPage no se verán afectados.",
         "data": {
-          "subject_ids": "Asignaturas"
+          "subject_ids": "Asignaturas",
+          "consultations_my_teachers": "Tutorías solo con docentes de mi hijo o hija",
+          "participation_deadline_hours": "Aviso antes del plazo límite (horas)"
         }
       }
     }
@@ -82,7 +84,74 @@
       "new_exam": "Se recibió un nuevo examen",
       "timetable_change": "Se recibió un cambio en el horario",
       "arrival_at_school": "Se registró una llegada a la escuela",
+      "consultation_block_published": "Bloque de tutorías publicado",
+      "consultation_booked": "Tutoría reservada",
+      "consultation_booking_opened": "Reservas de tutorías abiertas",
+      "consultation_changed": "Tutoría modificada",
+      "consultation_cancelled": "Tutoría cancelada",
+      "consultation_booking_closing": "El plazo de reserva de tutorías termina pronto",
+      "registration_opened": "Inscripción abierta",
+      "registration_deadline_soon": "El plazo de inscripción termina pronto",
       "new_note": "Se recibió una nueva nota de comportamiento"
+    }
+  },
+  "exceptions": {
+    "consultation_rejected": {
+      "message": "EduPage ha rechazado la solicitud. Consulta las reglas de reserva en su sitio web."
+    },
+    "slot_taken": {
+      "message": "Esta cita ya no está libre."
+    },
+    "booking_closed": {
+      "message": "El período de reserva está cerrado."
+    },
+    "booking_limit": {
+      "message": "Ya existe una reserva propia en este bloque o se ha alcanzado el límite de reservas."
+    },
+    "booking_not_owned": {
+      "message": "No se ha encontrado la reserva propia o la cancelación es ambigua."
+    },
+    "booking_uncertain": {
+      "message": "No se ha podido verificar el resultado de la operación. Comprueba EduPage antes de volver a intentarlo."
+    },
+    "entry_not_loaded": {
+      "message": "La entrada del alumno seleccionado no está cargada."
+    },
+    "session_expired": {
+      "message": "La sesión ha caducado. Inicia sesión de nuevo."
+    },
+    "invalid_start": {
+      "message": "Usa una fecha y hora ISO que incluya la zona horaria."
+    },
+    "select_consultation": {
+      "message": "Selecciona primero una tutoría."
+    },
+    "note_unsupported": {
+      "message": "El protocolo de reserva analizado no admite notas de los participantes."
+    },
+    "slot_not_found": {
+      "message": "Esta hora no existe en este bloque de tutorías."
+    },
+    "unrelated_teacher": {
+      "message": "No se ha verificado que el docente corresponda a este alumno. Comprueba la entrada del alumno o establece explícitamente allow_unrelated_teacher."
+    }
+  },
+  "entity": {
+    "select": {
+      "consultation_slot": {
+        "name": "Tutoría disponible"
+      },
+      "consultation_booking": {
+        "name": "Tutoría reservada"
+      }
+    },
+    "button": {
+      "book_consultation": {
+        "name": "Reservar la tutoría seleccionada"
+      },
+      "cancel_consultation": {
+        "name": "Cancelar la tutoría seleccionada"
+      }
     }
   }
 }

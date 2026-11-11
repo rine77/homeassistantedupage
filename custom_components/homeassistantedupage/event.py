@@ -27,6 +27,8 @@ EVENT_ARRIVAL_AT_SCHOOL = "arrival_at_school"
 EVENT_NEW_NOTE = "new_note"
 EVENT_EDUPAGE = f"{DOMAIN}_event"
 
+from .participation_monitor import PARTICIPATION_EVENTS, ParticipationTracker
+
 EVENT_TYPES = [
     EVENT_NEW_GRADE,
     EVENT_NEW_HOMEWORK,
@@ -34,6 +36,7 @@ EVENT_TYPES = [
     EVENT_NEW_EXAM,
     EVENT_TIMETABLE_CHANGE,
     EVENT_ARRIVAL_AT_SCHOOL,
+    *PARTICIPATION_EVENTS,
     EVENT_NEW_NOTE,
 ]
 
@@ -108,12 +111,26 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
             self._student_id, self._student_name
         )
         self._known_event_ids = self._notification_ids()
+        self._participation_tracker = ParticipationTracker()
+        from homeassistant.util import dt as dt_util
+        self._participation_tracker.update(coordinator, dt_util.now())
 
     def _device_id(self) -> str | None:
         """Return the Home Assistant device ID for this student."""
-        device = dr.async_get(self.coordinator.hass).async_get_device(
-            identifiers={(DOMAIN, str(self._student_id))}
-        )
+        entry = self.coordinator.config_entry
+        if entry is None:
+            return None
+        registry = dr.async_get(self.coordinator.hass)
+        identifier = (DOMAIN, str(self._student_id))
+        lookup = getattr(registry, "async_get_device_by_identifier", None)
+        if lookup is not None:
+            device = lookup(identifier, entry.entry_id)
+        else:
+            # Older registries have globally unique identifiers. Still check
+            # ownership so another child's entry cannot supply the device ID.
+            device = registry.async_get_device(identifiers={identifier})
+            if device is not None and entry.entry_id not in device.config_entries:
+                return None
         return device.id if device is not None else None
 
     def _notifications(self) -> list[Any]:
@@ -213,6 +230,14 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
 
     def _handle_coordinator_update(self) -> None:
         """Emit supported notifications that appeared since the last update."""
+        from homeassistant.util import dt as dt_util
+        for kind, attributes in self._participation_tracker.update(self.coordinator, dt_util.now()):
+            attributes = {**attributes, "student_id": self._student_id,
+                          "student_name": self._student_name,
+                          "entry_id": self.coordinator.config_entry.entry_id}
+            self._trigger_event(kind, attributes)
+            self.coordinator.hass.bus.async_fire(EVENT_EDUPAGE,
+                {"device_id": self._device_id(), "type": kind, **attributes})
         notifications = self._notifications()
         current_ids = self._notification_ids()
         event_triggered = False

@@ -69,7 +69,9 @@
         "title": "Výber predmetov",
         "description": "Vyberte predmety, pre ktoré sa majú vytvoriť senzory známok. Ostatné entity EduPage zostanú bez zmeny.",
         "data": {
-          "subject_ids": "Predmety"
+          "subject_ids": "Predmety",
+          "consultations_my_teachers": "Konzultácie iba s učiteľmi môjho dieťaťa",
+          "participation_deadline_hours": "Upozornenie pred uzávierkou (hodiny)"
         }
       }
     }
@@ -82,7 +84,74 @@
       "new_exam": "Bola zadaná nová písomka alebo skúšanie",
       "timetable_change": "Bola zverejnená zmena rozvrhu alebo suplovanie",
       "arrival_at_school": "Bol zaznamenaný príchod do školy",
+      "consultation_block_published": "Zverejnený blok konzultácií",
+      "consultation_booked": "Konzultácia rezervovaná",
+      "consultation_booking_opened": "Rezervácie konzultácií otvorené",
+      "consultation_changed": "Konzultácia zmenená",
+      "consultation_cancelled": "Konzultácia zrušená",
+      "consultation_booking_closing": "Uzávierka rezervácií konzultácií sa blíži",
+      "registration_opened": "Prihlasovanie otvorené",
+      "registration_deadline_soon": "Uzávierka prihlasovania sa blíži",
       "new_note": "Bola pridaná pochvala alebo poznámka"
+    }
+  },
+  "exceptions": {
+    "consultation_rejected": {
+      "message": "EduPage požiadavku odmietol. Skontrolujte pravidlá rezervácie na jeho stránke."
+    },
+    "slot_taken": {
+      "message": "Tento termín už nie je voľný."
+    },
+    "booking_closed": {
+      "message": "Obdobie rezervácií je uzavreté."
+    },
+    "booking_limit": {
+      "message": "V tomto bloku už máte rezerváciu alebo bol dosiahnutý limit rezervácií."
+    },
+    "booking_not_owned": {
+      "message": "Vlastná rezervácia sa nenašla alebo zrušenie nie je jednoznačné."
+    },
+    "booking_uncertain": {
+      "message": "Výsledok zápisu sa nepodarilo overiť. Pred ďalším pokusom skontrolujte EduPage."
+    },
+    "entry_not_loaded": {
+      "message": "Vybraný záznam dieťaťa nie je načítaný."
+    },
+    "session_expired": {
+      "message": "Relácia vypršala. Prihláste sa znova."
+    },
+    "invalid_start": {
+      "message": "Použite dátum a čas vo formáte ISO vrátane časového pásma."
+    },
+    "select_consultation": {
+      "message": "Najprv vyberte konzultáciu."
+    },
+    "note_unsupported": {
+      "message": "Preskúmaný rezervačný protokol nepodporuje poznámky účastníkov."
+    },
+    "slot_not_found": {
+      "message": "Tento čas v danom bloku konzultácií neexistuje."
+    },
+    "unrelated_teacher": {
+      "message": "Učiteľ nie je pre toto dieťa overený. Skontrolujte záznam dieťaťa alebo výslovne nastavte allow_unrelated_teacher."
+    }
+  },
+  "entity": {
+    "select": {
+      "consultation_slot": {
+        "name": "Dostupná konzultácia"
+      },
+      "consultation_booking": {
+        "name": "Rezervovaná konzultácia"
+      }
+    },
+    "button": {
+      "book_consultation": {
+        "name": "Rezervovať vybranú konzultáciu"
+      },
+      "cancel_consultation": {
+        "name": "Zrušiť vybranú konzultáciu"
+      }
     }
   }
 }

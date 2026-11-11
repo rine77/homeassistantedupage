@@ -69,7 +69,9 @@
         "title": "Wybór przedmiotów",
         "description": "Wybierz przedmioty, dla których mają zostać utworzone sensory ocen. Nie wpłynie to na pozostałe sensory EduPage.",
         "data": {
-          "subject_ids": "Przedmioty"
+          "subject_ids": "Przedmioty",
+          "consultations_my_teachers": "Konsultacje tylko z nauczycielami mojego dziecka",
+          "participation_deadline_hours": "Ostrzeżenie o upływie terminu (godziny)"
         }
       }
     }
@@ -82,7 +84,74 @@
       "new_exam": "Dodano nowy sprawdzian lub egzamin",
       "timetable_change": "Otrzymano zmianę w planie lekcji",
       "arrival_at_school": "Zarejestrowano przybycie do szkoły",
+      "consultation_block_published": "Opublikowano blok konsultacji",
+      "consultation_booked": "Zarezerwowano konsultację",
+      "consultation_booking_opened": "Otwarto rezerwacje konsultacji",
+      "consultation_changed": "Zmieniono konsultację",
+      "consultation_cancelled": "Odwołano konsultację",
+      "consultation_booking_closing": "Wkrótce upływa termin rezerwacji konsultacji",
+      "registration_opened": "Otwarto zapisy",
+      "registration_deadline_soon": "Wkrótce upływa termin zapisów",
       "new_note": "Dodano nową uwagę lub pochwałę"
+    }
+  },
+  "exceptions": {
+    "consultation_rejected": {
+      "message": "EduPage odrzucił żądanie. Sprawdź zasady rezerwacji na stronie."
+    },
+    "slot_taken": {
+      "message": "Ten termin nie jest już wolny."
+    },
+    "booking_closed": {
+      "message": "Okres rezerwacji jest zamknięty."
+    },
+    "booking_limit": {
+      "message": "W tym bloku istnieje już własna rezerwacja lub osiągnięto limit rezerwacji."
+    },
+    "booking_not_owned": {
+      "message": "Nie znaleziono własnej rezerwacji lub anulowanie jest niejednoznaczne."
+    },
+    "booking_uncertain": {
+      "message": "Nie udało się potwierdzić wyniku operacji. Sprawdź EduPage przed ponowną próbą."
+    },
+    "entry_not_loaded": {
+      "message": "Wybrany wpis dziecka nie jest załadowany."
+    },
+    "session_expired": {
+      "message": "Sesja wygasła. Zaloguj się ponownie."
+    },
+    "invalid_start": {
+      "message": "Użyj daty i godziny w formacie ISO ze strefą czasową."
+    },
+    "select_consultation": {
+      "message": "Najpierw wybierz konsultację."
+    },
+    "note_unsupported": {
+      "message": "Sprawdzony protokół rezerwacji nie obsługuje notatek uczestników."
+    },
+    "slot_not_found": {
+      "message": "Ta godzina nie istnieje w tym bloku konsultacji."
+    },
+    "unrelated_teacher": {
+      "message": "Nie potwierdzono, że nauczyciel uczy tego dziecka. Sprawdź wpis dziecka lub jawnie ustaw allow_unrelated_teacher."
+    }
+  },
+  "entity": {
+    "select": {
+      "consultation_slot": {
+        "name": "Dostępna konsultacja"
+      },
+      "consultation_booking": {
+        "name": "Zarezerwowana konsultacja"
+      }
+    },
+    "button": {
+      "book_consultation": {
+        "name": "Zarezerwuj wybraną konsultację"
+      },
+      "cancel_consultation": {
+        "name": "Anuluj wybraną konsultację"
+      }
     }
   }
 }

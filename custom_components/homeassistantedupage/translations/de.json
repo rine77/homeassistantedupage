@@ -59,7 +59,8 @@
       "no_students_found": "Auf diesem Konto wurden keine Schüler gefunden.",
       "reconfigured": "Die gespeicherte Sitzung wurde erfolgreich aktualisiert.",
       "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}",
-      "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}"
+      "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}",
+      "reauth_successful": "Erneute Anmeldung erfolgreich."
     }
   },
   "options": {
@@ -68,7 +69,9 @@
         "title": "Fächer auswählen",
         "description": "Wählen Sie die Fächer aus, für die Notensensoren erstellt werden sollen. Andere EduPage-Sensoren sind davon nicht betroffen.",
         "data": {
-          "subject_ids": "Fächer"
+          "subject_ids": "Fächer",
+          "consultations_my_teachers": "Sprechstunden nur bei Lehrkräften meines Kindes",
+          "participation_deadline_hours": "Warnung vor Fristablauf (Stunden)"
         }
       }
     }
@@ -81,7 +84,74 @@
       "new_exam": "Eine neue Prüfung wurde empfangen",
       "timetable_change": "Eine Stundenplanänderung wurde empfangen",
       "arrival_at_school": "Eine Ankunft in der Schule wurde erfasst",
+      "consultation_block_published": "Sprechstundenblock veröffentlicht",
+      "consultation_booked": "Sprechstunde gebucht",
+      "consultation_booking_opened": "Buchung von Sprechstunden geöffnet",
+      "consultation_changed": "Sprechstunde geändert",
+      "consultation_cancelled": "Sprechstunde abgesagt",
+      "consultation_booking_closing": "Buchungsfrist für Sprechstunden endet bald",
+      "registration_opened": "Anmeldung geöffnet",
+      "registration_deadline_soon": "Anmeldefrist endet bald",
       "new_note": "Eine neue Verhaltensnotiz wurde erfasst"
+    }
+  },
+  "exceptions": {
+    "consultation_rejected": {
+      "message": "EduPage hat die Anfrage abgelehnt. Prüfen Sie die Buchungsregeln auf der Website."
+    },
+    "slot_taken": {
+      "message": "Dieser Termin ist nicht mehr frei."
+    },
+    "booking_closed": {
+      "message": "Der Buchungszeitraum ist geschlossen."
+    },
+    "booking_limit": {
+      "message": "In diesem Block besteht bereits eine eigene Buchung oder ein Buchungslimit wurde erreicht."
+    },
+    "booking_not_owned": {
+      "message": "Die eigene Buchung wurde nicht gefunden oder die Stornierung ist nicht eindeutig."
+    },
+    "booking_uncertain": {
+      "message": "Das Ergebnis des Schreibvorgangs konnte nicht bestätigt werden. Prüfen Sie EduPage, bevor Sie es erneut versuchen."
+    },
+    "entry_not_loaded": {
+      "message": "Der ausgewählte Eintrag des Kindes ist nicht geladen."
+    },
+    "session_expired": {
+      "message": "Die Sitzung ist abgelaufen. Melden Sie sich erneut an."
+    },
+    "invalid_start": {
+      "message": "Verwenden Sie Datum und Uhrzeit im ISO-Format einschließlich Zeitzone."
+    },
+    "select_consultation": {
+      "message": "Wählen Sie zuerst eine Sprechstunde aus."
+    },
+    "note_unsupported": {
+      "message": "Notizen von Teilnehmenden werden vom untersuchten Buchungsprotokoll nicht unterstützt."
+    },
+    "slot_not_found": {
+      "message": "Diese Uhrzeit existiert in diesem Sprechstundenblock nicht."
+    },
+    "unrelated_teacher": {
+      "message": "Die Lehrkraft ist für dieses Kind nicht bestätigt. Prüfen Sie den Eintrag des Kindes oder setzen Sie ausdrücklich allow_unrelated_teacher."
+    }
+  },
+  "entity": {
+    "select": {
+      "consultation_slot": {
+        "name": "Verfügbare Sprechstunde"
+      },
+      "consultation_booking": {
+        "name": "Gebuchte Sprechstunde"
+      }
+    },
+    "button": {
+      "book_consultation": {
+        "name": "Ausgewählte Sprechstunde buchen"
+      },
+      "cancel_consultation": {
+        "name": "Ausgewählte Sprechstunde stornieren"
+      }
     }
   }
 }

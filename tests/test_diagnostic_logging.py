@@ -53,15 +53,12 @@ async def test_session_failure_logs_start_response_and_original_parent_frame(cap
                         headers={"Set-Cookie": "PRIVATE_COOKIE"}, history=[], raise_for_status=lambda: None),
     ]
     with caplog.at_level(logging.DEBUG):
-        with pytest.raises(UpdateFailed):
-            await wrapper.login("PRIVATE_USER", "school", "PRIVATE_COOKIE")
+        await wrapper.login("PRIVATE_USER", "school", "PRIVATE_COOKIE")
     assert "Session reload start" in caplog.text
     assert "Session reload succeeded" in caplog.text
-    assert "parent_switch request" in caplog.text
-    assert "parent_switch response" in caplog.text
-    assert "parent_context_recovery" in caplog.text
-    assert "parent.py" in caplog.text and "switch_to_parent" in caplog.text
-    assert "UnknownServerError: Parent switch redirected to login" in caplog.text
+    assert "parent_switch request" not in caplog.text
+    assert api.session.get.call_count == 1
+    assert not wrapper.context_invalid
     assert "entry_id=entry-A student_id=-1" in caplog.text
     assert "PRIVATE" not in caplog.text
     assert not wrapper.auth_failed

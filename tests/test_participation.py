@@ -103,7 +103,7 @@ async def test_wrapper_restores_parent_on_detail_failure():
     with pytest.raises(UpdateFailed):
         await w.get_registrations(student)
     w.api.switch_to_child.assert_called_once_with(student)
-    w.api.switch_to_parent.assert_called_once()
+    w.api.switch_to_parent.assert_not_called()
 
 
 async def test_wrapper_student_account_and_read_only_slot_calls():

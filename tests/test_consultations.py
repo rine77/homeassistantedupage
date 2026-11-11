@@ -316,7 +316,7 @@ async def test_teacher_filter_enforced_before_any_booking(dry_run):
         )
     assert error.value.code == "unrelated_teacher"
     wrapper.api.book_consultation_slot.assert_not_called()
-    wrapper.api.switch_to_parent.assert_called_once()
+    wrapper.api.switch_to_parent.assert_not_called()
 
 
 async def test_explicit_teacher_override_reaches_api():
@@ -394,7 +394,7 @@ async def test_fresh_child_teacher_relation_is_accepted():
         require_related_teacher=True,
     )
     wrapper.api.book_consultation_slot.assert_called_once()
-    wrapper.api.switch_to_parent.assert_called_once()
+    wrapper.api.switch_to_parent.assert_not_called()
 
 
 async def test_overlapping_blocks_show_slot_and_block_ends(hass):
@@ -414,8 +414,8 @@ async def test_overlapping_blocks_show_slot_and_block_ends(hass):
 
 @pytest.mark.parametrize("action", ["book", "cancel"])
 @pytest.mark.parametrize("worker_fails", [False, True])
-async def test_cancelled_action_holds_session_lock_until_parent_restored(hass, action, worker_fails):
-    """Use a real executor thread; cancellation cannot stop its finally block."""
+async def test_cancelled_action_holds_session_lock_until_worker_finishes(hass, action, worker_fails):
+    """Use a real executor thread; cancellation cannot release the lock before worker completion."""
     import asyncio
     import threading
     from custom_components.homeassistantedupage.homeassistant_edupage import Edupage
@@ -434,17 +434,14 @@ async def test_cancelled_action_holds_session_lock_until_parent_restored(hass, a
     def work(**kwargs):
         loop.call_soon_threadsafe(started.set)
         assert finish.wait(5), "test did not release executor"
+        assert c.fetch_lock.locked()
+        loop.call_soon_threadsafe(restored.set)
         if worker_fails:
             raise ConsultationUncertain()
         return ConsultationReservation("b1", NOW, "v1")
 
-    def restore():
-        assert c.fetch_lock.locked()
-        loop.call_soon_threadsafe(restored.set)
-
     api.book_consultation_slot.side_effect = work
     api.cancel_consultation.side_effect = work
-    api.switch_to_parent.side_effect = restore
     # The eligibility check is tested elsewhere; this test focuses on locking.
     task = asyncio.create_task(perform_action(
         hass, entry.entry_id, action, consultation_id="b1", start=NOW,
@@ -472,7 +469,7 @@ async def test_cancelled_action_holds_session_lock_until_parent_restored(hass, a
     with pytest.raises(asyncio.CancelledError):
         await task
     await polling
-    api.switch_to_parent.assert_called_once()
+    api.switch_to_parent.assert_not_called()
     getattr(api, "book_consultation_slot" if action == "book" else "cancel_consultation").assert_called_once()
     c.async_request_refresh.assert_awaited_once()
     if action == "cancel" and not worker_fails:

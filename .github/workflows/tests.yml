@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: michalmedvecky/edupage-api
-          ref: e9ac6d267be944bde55c7a8b4ddd8ed79a85b780
+          ref: ccc1ba225da738fbfe92800c60593a4563e9aeb1
           path: .test-edupage-api
 
       - name: Install dependencies

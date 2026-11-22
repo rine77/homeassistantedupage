@@ -89,7 +89,7 @@ async def _collect_data(edupage, student, student_name):
             _LOGGER.warning("get_classes failed: %s", e)
 
     try:
-        grades = await edupage.get_grades()
+        grades = await edupage.get_grades(student)
         data_ok["grades"] = True
     except Exception as e:  # noqa: BLE001
         _LOGGER.warning("get_grades failed: %s", e)
@@ -159,7 +159,7 @@ async def _collect_data(edupage, student, student_name):
     for offset in range(14):
         current_date = today + timedelta(days=offset)
         try:
-            meals = await edupage.get_meals(current_date)
+            meals = await edupage.get_meals(current_date, student)
         except Exception as e:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to fetch meals data for %s: %s",
@@ -222,7 +222,7 @@ async def _collect_data(edupage, student, student_name):
                 grades_per_term[
                     term_key
                 ] = await edupage.get_grades_for_term(
-                    school_year, term_enum
+                    school_year, term_enum, student
                 )
             except Exception as e:  # noqa: BLE001
                 _LOGGER.warning(

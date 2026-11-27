@@ -8,7 +8,6 @@ from typing import Any
 from homeassistant.components.event import EventEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -111,9 +110,7 @@ class EduPageEventEntity(CoordinatorEntity, EventEntity):
 
     def _device_id(self) -> str | None:
         """Return the Home Assistant device ID for this student."""
-        device = dr.async_get(self.coordinator.hass).async_get_device(
-            identifiers={(DOMAIN, str(self._student_id))}
-        )
+        device = self.device_entry
         return device.id if device is not None else None
 
     def _notifications(self) -> list[Any]:

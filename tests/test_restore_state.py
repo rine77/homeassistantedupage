@@ -18,8 +18,10 @@ coercion/restore logic without needing recorder/platform plumbing.
 
 import logging
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
+from edupage_api import UnknownTeacher
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -119,6 +121,21 @@ def _notification_sensor(coord):
 
 def _substitution_sensor(coord):
     return EduPageSubstitutionSensor(coord, 1, "Max Kov", "timetable_changes")
+
+
+async def test_missing_teachers_includes_unknown_teacher(hass, coord):
+    coord.data["missing_teachers"] = [
+        SimpleNamespace(name="Known Teacher", person_id=42),
+        UnknownTeacher("Unknown Teacher"),
+    ]
+    sensor = EduPageSubstitutionSensor(coord, 1, "Max Kov", "missing_teachers")
+
+    assert sensor.state == 2
+    attributes = sensor.extra_state_attributes
+    assert attributes["teacher_1_name"] == "Known Teacher"
+    assert attributes["teacher_1_id"] == 42
+    assert attributes["teacher_2_name"] == "Unknown Teacher"
+    assert "teacher_2_id" not in attributes
 
 
 def _ringing_sensor(coord):

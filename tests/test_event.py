@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from pytest_homeassistant_custom_component.common import async_capture_events
+from ha_test_helpers import async_capture_events
 
 from custom_components.homeassistantedupage.event import (
     EVENT_EDUPAGE,

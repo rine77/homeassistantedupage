@@ -1,7 +1,7 @@
 """Tests for migrating EduPage entities to their student device."""
 
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from ha_test_helpers import MockConfigEntry
 
 from custom_components.homeassistantedupage import (
     _async_group_config_entry_entities,

@@ -1,3 +1,4 @@
+import json
 import logging
 
 from edupage_api import Edupage as APIEdupage
@@ -5,8 +6,10 @@ from edupage_api import LoginSession
 from edupage_api.exceptions import (
     BadCredentialsException,
     InsufficientPermissionsException,
+    InvalidMealsData,
     NotParentException,
 )
+from edupage_api.lunches import Lunches, Meals
 
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -217,11 +220,70 @@ class Edupage:
                 f"EDUPAGE error updating get_timetable() data for {day}: {e}"
             )
 
+    def _fetch_meals_day(self, day):
+        """Fallback canteen parser for schools whose canteen data is keyed
+        under a different name than the school subdomain (e.g. a canteen
+        shared by several schools). Only use a menu when exactly one entry
+        has both a boarder id (``stravnikid``) and data for the requested day.
+        """
+        subdomain = self.api.subdomain
+        url = f"https://{subdomain}.edupage.org/menu/?date={day.strftime('%Y%m%d')}"
+        response = self.api.session.get(url).content.decode()
+        _, marker, payload = response.partition("edupageData:")
+        if not marker:
+            raise InvalidMealsData("Missing canteen data in fallback response")
+        lunch_data, _ = json.JSONDecoder().raw_decode(payload.lstrip())
+        if not isinstance(lunch_data, dict):
+            raise InvalidMealsData("Invalid canteen data in fallback response")
+
+        day_key = day.strftime("%Y-%m-%d")
+        registered_canteen_found = False
+        candidates = []
+        for value in lunch_data.values():
+            if not isinstance(value, dict):
+                continue
+            listok = value.get("novyListok")
+            if not isinstance(listok, dict):
+                continue
+            info = listok.get("addInfo")
+            if not isinstance(info, dict) or not (candidate_id := info.get("stravnikid")):
+                continue
+            candidate_meals = listok.get(day_key)
+            if candidate_meals is not None and not isinstance(candidate_meals, dict):
+                continue
+            registered_canteen_found = True
+            if candidate_meals:
+                candidates.append((candidate_id, candidate_meals))
+
+        if not registered_canteen_found:
+            raise InvalidMealsData("No canteen entry with a boarder id and valid menu data")
+        if not candidates:
+            return None
+        if len(candidates) > 1:
+            raise InvalidMealsData("Multiple canteen entries match the requested day")
+
+        boarder_id, meals = candidates[0]
+        parser = Lunches(self.api)
+        try:
+            return Meals(
+                parser.parse_meal("1", meals.get("1"), boarder_id, day),
+                parser.parse_meal("2", meals.get("2"), boarder_id, day),
+                parser.parse_meal("3", meals.get("3"), boarder_id, day),
+            )
+        except (IndexError, AttributeError) as exc:
+            raise InvalidMealsData("Could not parse the fallback canteen menu") from exc
+
+    def _get_meals(self, day):
+        try:
+            return self.api.get_meals(day)
+        except InvalidMealsData:
+            # "Missing boarder id": the canteen is not stored under the
+            # school subdomain; try the entry that holds the menu.
+            return self._fetch_meals_day(day)
+
     async def get_meals(self, day):
         try:
-            return await self.hass.async_add_executor_job(
-                self.api.get_meals, day
-            )
+            return await self.hass.async_add_executor_job(self._get_meals, day)
         except (IndexError, AttributeError) as e:
             _LOGGER.debug(
                 "EDUPAGE get_meals returned empty or unsupported data for %s: %s",

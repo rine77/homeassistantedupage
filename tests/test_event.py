@@ -8,8 +8,10 @@ from types import SimpleNamespace
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from pytest_homeassistant_custom_component.common import async_capture_events
 
 from custom_components.homeassistantedupage.event import (
+    EVENT_EDUPAGE,
     EVENT_NEW_EXAM,
     EVENT_NEW_GRADE,
     EVENT_NEW_HOMEWORK,
@@ -239,6 +241,22 @@ def test_event_entity_creates_student_device(coordinator):
         ("homeassistantedupage", "1")
     }
     assert entity.device_info["name"] == "EduPage - Max Example"
+
+
+async def test_bus_event_uses_the_device_assigned_to_the_entity(hass, coordinator):
+    """Device triggers rely on the ID assigned by the entity platform."""
+    entity = _entity(coordinator)
+    entity.device_entry = SimpleNamespace(id="assigned-device")
+    entity.async_write_ha_state = lambda: None
+    events = async_capture_events(hass, EVENT_EDUPAGE)
+
+    coordinator.data["notifications"] = [_event(1, "homework")]
+    entity._handle_coordinator_update()
+    await hass.async_block_till_done()
+
+    assert len(events) == 1
+    assert events[0].data["device_id"] == "assigned-device"
+    assert events[0].data["type"] == EVENT_NEW_HOMEWORK
 
 
 _NOTE_DATA = {

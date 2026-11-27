@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF_TYPE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from ha_test_helpers import MockConfigEntry
 
 from custom_components.homeassistantedupage.const import DOMAIN
 from custom_components.homeassistantedupage.device_trigger import (

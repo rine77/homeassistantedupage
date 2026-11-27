@@ -16,19 +16,35 @@ permissions:
 
 jobs:
   pytest:
+    name: ${{ matrix.job-name }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - job-name: pytest
+            python: "3.12"
+            home-assistant: "2025.1.4"
+            test-plugin: "pytest-homeassistant-custom-component==0.13.205"
+          - job-name: pytest (HA 2026.11.3, Python 3.14)
+            python: "3.14"
+            home-assistant: "2026.11.3"
+            test-plugin: "pytest-homeassistant==2026.11.3"
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
 
       - name: Install dependencies
+        env:
+          HA_VERSION: ${{ matrix.home-assistant }}
+          HA_TEST_PLUGIN: ${{ matrix.test-plugin }}
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-homeassistant-custom-component edupage-api==0.14.0 unidecode
+          python -m pip install "homeassistant==$HA_VERSION" "$HA_TEST_PLUGIN" edupage-api==0.14.0 unidecode
 
       - name: Run tests
         run: pytest tests -v

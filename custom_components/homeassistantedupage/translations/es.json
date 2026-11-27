@@ -14,7 +14,8 @@
         "data": {
           "password": "Contraseña",
           "username": "Nombre de usuario",
-          "subdomain": "Subdominio de la escuela"
+          "subdomain": "Subdominio de la escuela",
+          "teacher_account": "Cuenta de docente (solo horario)"
         },
         "description": "Introduce tu nombre de usuario y contraseña de EduPage, así como el subdominio de la escuela.\n\nSi tienes activada la verificación en dos pasos, se te pedirá un código de confirmación de la aplicación EduPage.",
         "title": "Iniciar sesión en EduPage"
@@ -57,6 +58,8 @@
     "abort": {
       "already_configured": "Esta cuenta de EduPage ya está configurada.",
       "no_students_found": "No se encontraron estudiantes en esta cuenta.",
+      "teacher_account_unavailable": "No se pudo iniciar una sesión de horario para esta cuenta.",
+      "teacher_account_mismatch": "Inicia sesión con la misma cuenta de EduPage con la que se configuró este horario.",
       "reconfigured": "La sesión guardada se actualizó correctamente.",
       "reconfigure_failed": "No se pudo volver a iniciar sesión: {error}",
       "reauth_unsuccessful": "No se pudo completar la reautenticación: {error}",

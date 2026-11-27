@@ -14,7 +14,8 @@
         "data": {
           "password": "Password",
           "username": "Username",
-          "subdomain": "Subdomain"
+          "subdomain": "Subdomain",
+          "teacher_account": "Teacher account (timetable only)"
         },
         "description": "Enter your EduPage username, password and school subdomain.\n\nIf you have 2FA enabled, you will be asked for a confirmation code from the EduPage app.",
         "title": "Login to your edupage account"
@@ -57,6 +58,8 @@
     "abort": {
       "already_configured": "Device is already configured",
       "no_students_found": "No students were found on this account.",
+      "teacher_account_unavailable": "Could not start a timetable session for this account.",
+      "teacher_account_mismatch": "Sign in with the same EduPage account originally configured for this timetable.",
       "reconfigured": "Successfully updated the stored session.",
       "reconfigure_failed": "Re-authentication failed: {error}",
       "reauth_unsuccessful": "Re-authentication unsuccessful: {error}"

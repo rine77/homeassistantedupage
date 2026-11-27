@@ -14,7 +14,8 @@
         "data": {
           "password": "Heslo",
           "username": "Uživatelské jméno",
-          "subdomain": "Subdoména"
+          "subdomain": "Subdoména",
+          "teacher_account": "Účet učitele (pouze rozvrh)"
         },
         "description": "Zadejte uživatelské jméno a heslo k účtu EduPage a subdoménu školy.\n\nPokud máte zapnuté dvoufaktorové ověřování, budete vyzváni k zadání potvrzovacího kódu z aplikace EduPage.",
         "title": "Přihlášení k účtu EduPage"
@@ -57,6 +58,8 @@
     "abort": {
       "already_configured": "Zařízení je již nakonfigurováno",
       "no_students_found": "V tomto účtu nebyli nalezeni žádní žáci.",
+      "teacher_account_unavailable": "Pro tento účet se nepodařilo zahájit relaci rozvrhu.",
+      "teacher_account_mismatch": "Přihlaste se stejným účtem EduPage, se kterým byl tento rozvrh původně nastaven.",
       "reconfigured": "Uložené přihlášení bylo úspěšně aktualizováno.",
       "reconfigure_failed": "Opětovné ověření se nezdařilo: {error}",
       "reauth_unsuccessful": "Opětovné ověření se nezdařilo: {error}",

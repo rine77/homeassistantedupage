@@ -14,7 +14,8 @@
         "data": {
           "password": "Passwort",
           "username": "Username",
-          "subdomain": "Subdomain"
+          "subdomain": "Subdomain",
+          "teacher_account": "Lehrerkonto (nur Stundenplan)"
         },
         "description": "Geben Sie EduPage-Benutzername, Passwort und Schul-Subdomain ein.\n\nWenn Sie 2FA aktiviert haben, werden Sie nach einem Bestätigungscode aus der EduPage-App gefragt.",
         "title": "edupage account login"
@@ -57,6 +58,8 @@
     "abort": {
       "already_configured": "Das Gerät ist bereits konfiguriert",
       "no_students_found": "Auf diesem Konto wurden keine Schüler gefunden.",
+      "teacher_account_unavailable": "Für dieses Konto konnte keine Stundenplan-Sitzung gestartet werden.",
+      "teacher_account_mismatch": "Melde dich mit demselben EduPage-Konto an, mit dem dieser Stundenplan ursprünglich eingerichtet wurde.",
       "reconfigured": "Die gespeicherte Sitzung wurde erfolgreich aktualisiert.",
       "reconfigure_failed": "Erneute Authentifizierung fehlgeschlagen: {error}",
       "reauth_unsuccessful": "Erneute Authentifizierung nicht erfolgreich: {error}"

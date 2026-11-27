@@ -16,7 +16,8 @@
         "data": {
           "username": "[%key:common::config_flow::data::username%]",
           "password": "[%key:common::config_flow::data::password%]",
-          "subdomain": "Subdomain"
+          "subdomain": "Subdomain",
+          "teacher_account": "Teacher account (timetable only)"
         }
       },
       "two_factor": {
@@ -57,6 +58,8 @@
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
       "no_students_found": "No students were found on this account.",
+      "teacher_account_unavailable": "Could not start a timetable session for this account.",
+      "teacher_account_mismatch": "Sign in with the same EduPage account originally configured for this timetable.",
       "reconfigured": "Successfully updated the stored session.",
       "reconfigure_failed": "Re-authentication failed: {error}",
       "reauth_unsuccessful": "Re-authentication unsuccessful: {error}",

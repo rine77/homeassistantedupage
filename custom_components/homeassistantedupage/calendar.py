@@ -8,7 +8,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .assignment_helpers import event_matches_student
-from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, DOMAIN
+from .const import CONF_STUDENT_ID, CONF_STUDENT_NAME, CONF_TEACHER_USER_ID, DOMAIN
 from .entity_helpers import compact_entity_name, student_device_info
 from .event import _event_type_value
 from zoneinfo import ZoneInfo
@@ -22,6 +22,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     _LOGGER.debug("CALENDAR called async_setup_entry")
 
     coordinator = hass.data[DOMAIN][entry.entry_id]
+    if CONF_TEACHER_USER_ID in entry.data:
+        async_add_entities(
+            [EdupageCalendar(coordinator, entry.data, teacher_entry_id=entry.entry_id)]
+        )
+        return
 
     calendars = []
 
@@ -44,24 +49,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class EdupageCalendar(CoordinatorEntity, CalendarEntity):
     """Representation of an Edupage calendar entity."""
 
-    def __init__(self, coordinator, data):
+    def __init__(self, coordinator, data, *, teacher_entry_id=None):
         super().__init__(coordinator)
         self._data = data
         self._events = []
+        self._teacher_calendar = teacher_entry_id is not None
+        if self._teacher_calendar:
+            self._attr_unique_id = f"edupage_teacher_timetable_{teacher_entry_id}"
+            self._attr_name = "EduPage Teacher Timetable"
+            return
+
         student = coordinator.data.get("student", {}) if coordinator.data else {}
         self._student_id = student.get("id", data.get(CONF_STUDENT_ID, "unknown"))
         self._student_name = student.get("name") or data.get(
             CONF_STUDENT_NAME, "Unknown Student"
         )
         self._attr_name = compact_entity_name(self._student_name, "Timetable")
+        self._attr_unique_id = f"edupage_calendar_{self._student_id}"
         self._attr_device_info = student_device_info(
             self._student_id, self._student_name
         )
-
-    @property
-    def unique_id(self):
-        """Return a unique ID for this calendar."""
-        return f"edupage_calendar_{self._student_id}"
 
     @property
     def name(self):
@@ -71,6 +78,8 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
     @property
     def available(self) -> bool:
         """Return True if the calendar is available."""
+        if self._teacher_calendar:
+            return super().available
         return True
 
     @property
@@ -85,7 +94,7 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
         timetable = self.coordinator.data.get("timetable", {})
         timetable_canceled = self.coordinator.data.get("cancelled_lessons", {})
 
-        if not timetable:
+        if not timetable and not timetable_canceled:
             _LOGGER.warning("CALENDAR Timetable data is missing.")
             return events
 
@@ -116,8 +125,19 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
             room = lesson.classrooms[0].name
             description += f"\nRoom: {room}"
         local_tz = ZoneInfo(self.hass.config.time_zone)
-        start_time = datetime.combine(day, lesson.start_time).astimezone(local_tz)
-        end_time = datetime.combine(day, lesson.end_time).astimezone(local_tz)
+        if self._teacher_calendar:
+            class_names = [
+                school_class.name
+                for school_class in lesson.classes or ()
+                if school_class.name
+            ]
+            if class_names:
+                description += f"\nClass(es): {', '.join(class_names)}"
+            start_time = datetime.combine(day, lesson.start_time, tzinfo=local_tz)
+            end_time = datetime.combine(day, lesson.end_time, tzinfo=local_tz)
+        else:
+            start_time = datetime.combine(day, lesson.start_time).astimezone(local_tz)
+            end_time = datetime.combine(day, lesson.end_time).astimezone(local_tz)
         lesson_subject = lesson.subject.name if lesson.subject else "Unknown Subject"
         if not lesson.subject and lesson.is_event and lesson.curriculum:
             # edupage-api stores flags.event.name in curriculum for events.
@@ -135,8 +155,10 @@ class EdupageCalendar(CoordinatorEntity, CalendarEntity):
 
     def find_lesson_now_or_next_across_days(self) -> Optional[CalendarEvent]:
         lessons_by_day = self.coordinator.data.get("timetable", {})
-        current_time = datetime.now().time()
-        current_day = datetime.now().date()
+        clock = ZoneInfo(self.hass.config.time_zone) if self._teacher_calendar else None
+        now = datetime.now(clock)
+        current_time = now.time()
+        current_day = now.date()
 
         # Step 1: look for a lesson currently in progress.
         lessons_today = lessons_by_day.get(current_day, [])

@@ -44,7 +44,7 @@ jobs:
           HA_TEST_PLUGIN: ${{ matrix.test-plugin }}
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "homeassistant==$HA_VERSION" "$HA_TEST_PLUGIN" edupage-api==0.14.0 unidecode
+          python -m pip install "homeassistant==$HA_VERSION" "$HA_TEST_PLUGIN" edupage-api==0.14.1 unidecode
 
       - name: Run tests
         run: pytest tests -v

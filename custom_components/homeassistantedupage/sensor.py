@@ -868,7 +868,8 @@ class EduPageSubstitutionSensor(StateRestoringSensor):
         else:
             for i, teacher in enumerate(entries):
                 attributes[f"teacher_{i+1}_name"] = teacher.name
-                attributes[f"teacher_{i+1}_id"] = teacher.person_id
+                if (teacher_id := getattr(teacher, "person_id", None)) is not None:
+                    attributes[f"teacher_{i+1}_id"] = teacher_id
         attributes["data_stale"] = self.data_stale
         return attributes
 

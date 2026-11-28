@@ -14,7 +14,8 @@
         "data": {
           "password": "Hasło",
           "username": "Nazwa użytkownika",
-          "subdomain": "Subdomena szkoły"
+          "subdomain": "Subdomena szkoły",
+          "teacher_account": "Konto nauczyciela (tylko plan lekcji)"
         },
         "description": "Podaj nazwę użytkownika i hasło do EduPage oraz subdomenę szkoły.\n\nJeśli korzystasz z weryfikacji dwuetapowej, w następnym kroku podaj kod potwierdzający z aplikacji EduPage.",
         "title": "Logowanie do EduPage"
@@ -57,6 +58,8 @@
     "abort": {
       "already_configured": "To konto EduPage jest już skonfigurowane.",
       "no_students_found": "Na tym koncie nie znaleziono żadnych uczniów.",
+      "teacher_account_unavailable": "Nie udało się rozpocząć sesji planu lekcji dla tego konta.",
+      "teacher_account_mismatch": "Zaloguj się na to samo konto EduPage, którego użyto do skonfigurowania tego planu lekcji.",
       "reconfigured": "Zapisana sesja została pomyślnie zaktualizowana.",
       "reconfigure_failed": "Ponowne logowanie nie powiodło się: {error}",
       "reauth_unsuccessful": "Ponowne uwierzytelnienie nie powiodło się: {error}",

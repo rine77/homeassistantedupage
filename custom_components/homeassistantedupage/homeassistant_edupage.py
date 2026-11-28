@@ -220,6 +220,23 @@ class Edupage:
                 f"EDUPAGE error updating get_timetable() data for {day}: {e}"
             )
 
+    def get_user_id(self):
+        """Return the identity already loaded into the current session."""
+        return self.api.get_user_id()
+
+    async def get_my_timetable(self, day):
+        """Read timed lessons for the logged-in account."""
+        try:
+            timetable = await self.hass.async_add_executor_job(
+                self.api.get_my_timetable, day
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise UpdateFailed(f"Own timetable fetch failed ({type(exc).__name__})") from None
+        return [
+            lesson for lesson in timetable or ()
+            if lesson.start_time is not None and lesson.end_time is not None
+        ]
+
     def _fetch_meals_day(self, day):
         """Fallback canteen parser for schools whose canteen data is keyed
         under a different name than the school subdomain (e.g. a canteen

@@ -1,6 +1,8 @@
 import logging
 import asyncio
 from datetime import datetime, timedelta
+from functools import partial
+from zoneinfo import ZoneInfo
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_USERNAME
@@ -23,9 +25,12 @@ from .const import (
     CONF_SUBDOMAIN,
     CONF_STUDENT_ID,
     CONF_STUDENT_NAME,
+    CONF_TEACHER_USER_ID,
 )
 
 _LOGGER = logging.getLogger("custom_components.homeassistant_edupage")
+_STUDENT_PLATFORMS = ("calendar", "sensor", "event", "todo")
+_TEACHER_PLATFORMS = ("calendar",)
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the integration (config-entry only)."""
@@ -43,6 +48,27 @@ def _class_ids_match(first, second) -> bool:
         return abs(int(first)) == abs(int(second))
     except (TypeError, ValueError):
         return str(first) == str(second)
+
+
+async def _collect_timetable(get_timetable, today, *, continue_on_error=False):
+    """Collect normal and cancelled lessons over the polling window."""
+    timetable_data = {}
+    timetable_canceled = {}
+    timetable_ok = False
+    for offset in range(14):
+        day = today + timedelta(days=offset)
+        try:
+            timetable = await get_timetable(day)
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.error("Failed to fetch timetable data for %s: %s", day, exc)
+            if continue_on_error:
+                continue
+            break
+        timetable_ok = True
+        for lesson in timetable if timetable is not None else ():
+            target = timetable_canceled if lesson.is_cancelled else timetable_data
+            target.setdefault(day, []).append(lesson)
+    return timetable_data, timetable_canceled, timetable_ok
 
 
 async def _collect_data(edupage, student, student_name):
@@ -123,35 +149,9 @@ async def _collect_data(edupage, student, student_name):
 
     today = datetime.now().date()
 
-    timetable_data = {}
-    timetable_data_canceled = {}
-    timetable_ok = False
-    for offset in range(14):
-        current_date = today + timedelta(days=offset)
-        try:
-            timetable = await edupage.get_timetable(
-                student, current_date
-            )
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error(
-                "Failed to fetch timetable data for %s: %s",
-                current_date,
-                e,
-            )
-            break
-        timetable_ok = True
-        lessons_to_add = []
-        canceled_lessons = []
-        if timetable is not None:
-            for lesson in timetable:
-                if not lesson.is_cancelled:
-                    lessons_to_add.append(lesson)
-                else:
-                    canceled_lessons.append(lesson)
-        if lessons_to_add:
-            timetable_data[current_date] = lessons_to_add
-        if canceled_lessons:
-            timetable_data_canceled[current_date] = canceled_lessons
+    timetable_data, timetable_data_canceled, timetable_ok = await _collect_timetable(
+        partial(edupage.get_timetable, student), today
+    )
     data_ok["timetable"] = timetable_ok
 
     canteen_menu_data = {}
@@ -299,7 +299,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     username = entry.data[CONF_USERNAME]
     subdomain = entry.data[CONF_SUBDOMAIN]
     phpsessid = entry.data[CONF_PHPSESSID]
-    student_id = entry.data[CONF_STUDENT_ID]
+    teacher_user_id = entry.data.get(CONF_TEACHER_USER_ID)
+    student_id = entry.data.get(CONF_STUDENT_ID)
     stored_student_name = entry.data.get(CONF_STUDENT_NAME)
     edupage = Edupage(hass=hass, sessionid=phpsessid)
     coordinator = None
@@ -327,6 +328,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async with fetch_lock:
             try:
                 await edupage.login(username, subdomain, phpsessid)
+
+                if teacher_user_id is not None:
+                    if edupage.get_user_id() != teacher_user_id:
+                        raise EdupageSessionExpired("Stored EduPage account has changed")
+                    today = datetime.now(ZoneInfo(hass.config.time_zone)).date()
+                    timetable, cancelled, timetable_ok = await _collect_timetable(
+                        edupage.get_my_timetable, today, continue_on_error=True
+                    )
+                    if not timetable_ok:
+                        raise UpdateFailed("Could not fetch the EduPage teacher timetable")
+                    return {
+                        "timetable": timetable,
+                        "cancelled_lessons": cancelled,
+                        "data_ok": {"timetable": True},
+                    }
 
                 students = await edupage.get_students()
                 student = None
@@ -366,6 +382,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     coordinator.edupage = edupage
     coordinator.fetch_lock = fetch_lock
+    coordinator.teacher_calendar_only = teacher_user_id is not None
 
     try:
         hass.data[DOMAIN][entry.entry_id] = coordinator
@@ -377,20 +394,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             del hass.data[DOMAIN][entry.entry_id]
         return False
 
-    current_student = coordinator.data.get("student", {}) if coordinator.data else {}
-    _async_group_config_entry_entities(
-        hass,
-        entry,
-        current_student.get("id", student_id),
-        current_student.get("name") or stored_student_name or str(student_id),
-    )
+    if not coordinator.teacher_calendar_only:
+        current_student = coordinator.data.get("student", {}) if coordinator.data else {}
+        _async_group_config_entry_entities(
+            hass,
+            entry,
+            current_student.get("id", student_id),
+            current_student.get("name") or stored_student_name or str(student_id),
+        )
 
-    await hass.config_entries.async_forward_entry_setups(
-        entry, ["calendar", "sensor", "event", "todo"]
+    platforms = (
+        _TEACHER_PLATFORMS if coordinator.teacher_calendar_only else _STUDENT_PLATFORMS
     )
+    await hass.config_entries.async_forward_entry_setups(entry, list(platforms))
     _LOGGER.debug("INIT forwarded")
 
-    await _setup_services(hass)
+    if not coordinator.teacher_calendar_only:
+        await _setup_services(hass)
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -419,7 +439,11 @@ def _resolve_coordinator(hass, call: ServiceCall):
     is supplied but not loaded always raises rather than falling back to
     another account.
     """
-    entries = hass.data.get(DOMAIN, {})
+    entries = {
+        entry_id: coordinator
+        for entry_id, coordinator in hass.data.get(DOMAIN, {}).items()
+        if not getattr(coordinator, "teacher_calendar_only", False)
+    }
     entry_id = (call.data or {}).get("entry_id")
     if entry_id and entry_id in entries:
         return entries[entry_id]
@@ -582,10 +606,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload ConfigEntry."""
     _LOGGER.debug("INIT called async_unload_entry")
 
+    platforms = (
+        _TEACHER_PLATFORMS if CONF_TEACHER_USER_ID in entry.data else _STUDENT_PLATFORMS
+    )
     unload_results = await asyncio.gather(
         *(
             hass.config_entries.async_forward_entry_unload(entry, platform)
-            for platform in ("calendar", "sensor", "event", "todo")
+            for platform in platforms
         )
     )
     unload_ok = all(unload_results)

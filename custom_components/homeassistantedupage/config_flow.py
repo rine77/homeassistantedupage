@@ -24,6 +24,8 @@ from .const import (
     CONF_STUDENT_NAME,
     CONF_SUBDOMAIN,
     CONF_SUBJECT_IDS,
+    CONF_TEACHER_ACCOUNT,
+    CONF_TEACHER_USER_ID,
     CONF_TWO_FACTOR_CODE,
     DOMAIN,
     ISSUE_TRACKER,
@@ -53,6 +55,14 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Edupage (with optional TOTP 2FA)."""
 
     VERSION = 1
+
+    @classmethod
+    @callback
+    def async_supports_options_flow(
+        cls, config_entry: config_entries.ConfigEntry
+    ) -> bool:
+        """Only entries with grade sensors have subject options."""
+        return CONF_TEACHER_USER_ID not in config_entry.data
 
     @staticmethod
     @callback
@@ -144,6 +154,7 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_USERNAME): str,
                 vol.Required(CONF_PASSWORD): str,
                 vol.Required(CONF_SUBDOMAIN): str,
+                vol.Optional(CONF_TEACHER_ACCOUNT, default=False): bool,
             }
         )
         return self.async_show_form(
@@ -275,6 +286,9 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _finalize_setup(self, api, user_input):
         """Fetch students and advance to the student-selection step."""
+        if user_input.get(CONF_TEACHER_ACCOUNT):
+            return await self._async_create_teacher_entry(api, user_input)
+
         try:
             students = await self.hass.async_add_executor_job(api.get_students)
         except Exception:  # noqa: BLE001
@@ -300,6 +314,30 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             for student in students
         }
         return await self.async_step_select_student()
+
+    async def _async_create_teacher_entry(self, api, user_input):
+        """Store the logged-in identity for a read-only timetable entry."""
+        user_id = api.get_user_id() if api.is_logged_in else None
+        session_id = api.session.cookies.get_dict().get("PHPSESSID")
+        if not isinstance(user_id, str) or not user_id.strip() or not session_id:
+            return self.async_abort(reason="teacher_account_unavailable")
+        # The SDK uses the Rodic marker to distinguish parent sessions, which
+        # have no timetable of their own. The pilot otherwise uses explicit opt-in.
+        if "Rodic" in user_id:
+            return self.async_abort(reason="teacher_account_unavailable")
+
+        subdomain = user_input[CONF_SUBDOMAIN]
+        await self.async_set_unique_id(f"teacher:{subdomain.casefold()}:{user_id}")
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(
+            title="EduPage Teacher Timetable",
+            data={
+                CONF_USERNAME: user_input[CONF_USERNAME],
+                CONF_SUBDOMAIN: subdomain,
+                CONF_PHPSESSID: session_id,
+                CONF_TEACHER_USER_ID: user_id,
+            },
+        )
 
     async def async_step_select_student(self, user_input=None):
         """Handle the selection of a student."""
@@ -336,7 +374,9 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         PHPSESSID and reloads the config entry. Completed as a reauthentication.
         """
         self._reauth = True
-        return await self.async_step_reconfigure(user_input)
+        # Home Assistant starts reauth with entry data, without a password.
+        credentials = user_input if user_input and CONF_PASSWORD in user_input else None
+        return await self.async_step_reconfigure(credentials)
 
     async def async_step_reconfigure(self, user_input=None):
         """Re-login to refresh an expired stored session.
@@ -359,6 +399,9 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             username = user_input.get(CONF_USERNAME) or entry.data[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
             subdomain = user_input.get(CONF_SUBDOMAIN) or entry.data[CONF_SUBDOMAIN]
+            if CONF_TEACHER_USER_ID in entry.data:
+                username = entry.data[CONF_USERNAME]
+                subdomain = entry.data[CONF_SUBDOMAIN]
 
             api = Edupage()
             try:
@@ -427,8 +470,13 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     description_placeholders={"error": errors.get("base", "cannot_connect")},
                 )
 
-        data_schema = vol.Schema(
-            {
+        return self._show_reconfigure_form(entry, errors)
+
+    def _show_reconfigure_form(self, entry, errors):
+        if CONF_TEACHER_USER_ID in entry.data:
+            fields = {vol.Required(CONF_PASSWORD): str}
+        else:
+            fields = {
                 vol.Required(
                     CONF_USERNAME,
                     default=entry.data[CONF_USERNAME],
@@ -439,10 +487,9 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     default=entry.data[CONF_SUBDOMAIN],
                 ): str,
             }
-        )
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=data_schema,
+            data_schema=vol.Schema(fields),
             errors=errors,
         )
 
@@ -465,16 +512,18 @@ class EdupageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entry = self._reconfig_entry
         if entry is None:
             return self.async_abort(reason="already_configured")
+        if (
+            (expected_user_id := entry.data.get(CONF_TEACHER_USER_ID)) is not None
+            and (not api.is_logged_in or api.get_user_id() != expected_user_id)
+        ):
+            return self.async_abort(reason="teacher_account_mismatch")
         cookies = api.session.cookies.get_dict()
         phpsess = cookies.get("PHPSESSID")
         if not phpsess:
             # A failed or incomplete login must never be reported as a
             # successful reauthentication.
             _LOGGER.error("EduPage re-login did not yield a session.")
-            return self.async_show_form(
-                step_id="reconfigure",
-                errors={"base": "cannot_connect"},
-            )
+            return self._show_reconfigure_form(entry, {"base": "cannot_connect"})
         reason = "reauth_successful" if self._reauth else "reconfigured"
         return self.async_update_reload_and_abort(
             entry,
